@@ -1,17 +1,9 @@
 <!DOCTYPE html>
 <!-- this file is auto-generated from README.md. Do not edited directly -->
 <!--
-/**
- * @license twgl.js 2.1.0 Copyright (c) 2015, Gregg Tavares All Rights Reserved.
- * Available via the MIT license.
- * see: http://github.com/greggman/twgl.js for details
- */
-/**
- * @license almond 0.3.1 Copyright (c) 2011-2014, The Dojo Foundation All Rights Reserved.
- * Available via the MIT or new BSD license.
- * see: http://github.com/jrburke/almond for details
- */
-
+@license twgl.js 3.4.0 Copyright (c) 2015, Gregg Tavares All Rights Reserved.
+Available via the MIT license.
+see: http://github.com/greggman/twgl.js for details
 -->
 <html lang="en">
 <head>
@@ -62,9 +54,9 @@ to do stuff low-level with WebGL consider using <a href="http://github.com/gregg
 <h2 id="the-tiniest-example">The tiniest example</h2>
 <p>Not including the shaders (which is a simple quad shader) here&#39;s the entire code</p>
 <pre><code class="lang-html">&lt;canvas id=&quot;c&quot;&gt;&lt;/canvas&gt;
-&lt;script src=&quot;../dist/2.x/twgl-full.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;../dist/3.x/twgl-full.min.js&quot;&gt;&lt;/script&gt;
 &lt;script&gt;
-  var gl = twgl.getWebGLContext(document.getElementById(&quot;c&quot;));
+  var gl = document.getElementById(&quot;c&quot;).getContext(&quot;webgl&quot;);
   var programInfo = twgl.createProgramInfo(gl, [&quot;vs&quot;, &quot;fs&quot;]);
 
   var arrays = {
@@ -398,6 +390,12 @@ gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDE
 <ul>
 <li><a href="/examples/uniform-buffer-objects.html">uniform buffer objects</a></li>
 <li><a href="/examples/3d-textures-tone-mapping.html">3d textures tone mapping</a></li>
+<li><a href="/examples/samplers.html">samplers</a></li>
+<li><a href="/examples/webgl2-textures.html">webgl2 textures</a></li>
+<li><a href="/examples/3d-texture-volume.html">3d texture volume</a></li>
+<li><a href="/examples/3d-texture-volume-no-buffers.html">3d texture volume no buffers</a></li>
+<li><a href="/examples/2d-array-texture.html">2d array texture</a></li>
+<li><a href="/examples/transform-feedback.html">transform feedback</a></li>
 </ul>
 <h2 id="amd-support">AMD support</h2>
 <ul>
@@ -480,16 +478,12 @@ var attribs = {
   a_texcoord: { buffer: texcoordBuffer, size: 2, },
   a_color:    { buffer: colorBuffer,    size: 4, type: gl.UNSIGNED_BYTE, normalize: true, },
 };
-setAttributes(attribSetters, attribs);
+twgl.setAttributes(attribSetters, attribs);
 </code></pre>
 <p>The point of the example above is TWGL is a <strong>thin</strong> wrapper. All it&#39;s doing is trying
 to make common WebGL operations easier and less verbose. Feel free to mix it with raw WebGL.</p>
 <h2 id="want-to-learn-webgl-">Want to learn WebGL?</h2>
 <p>Try <a href="http://webglfundamentals.org">webglfundamentals.org</a></p>
-<h2 id="future">Future</h2>
-<ul>
-<li>What needs to change for WebGL 2.0?</li>
-</ul>
 
   </div>
 </div>

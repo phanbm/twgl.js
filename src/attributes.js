@@ -124,6 +124,14 @@ define([
     return false;
   }
 
+  // This is really just a guess. Though I can't really imagine using
+  // anything else? Maybe for some compression?
+  function getNormalizationForTypedArrayType(typedArrayType) {
+    if (typedArrayType === Int8Array)    { return true; }  // eslint-disable-line
+    if (typedArrayType === Uint8Array)   { return true; }  // eslint-disable-line
+    return false;
+  }
+
   function getArray(array) {
     return array.length ? array : array.data;
   }
@@ -189,7 +197,7 @@ define([
    * @property {number} [numComponents] the number of components for this attribute.
    * @property {number} [size] synonym for `numComponents`.
    * @property {number} [type] the type of the attribute (eg. `gl.FLOAT`, `gl.UNSIGNED_BYTE`, etc...) Default = `gl.FLOAT`
-   * @property {boolean} [normalized] whether or not to normalize the data. Default = false
+   * @property {boolean} [normalize] whether or not to normalize the data. Default = false
    * @property {number} [offset] offset into buffer in bytes. Default = 0
    * @property {number} [stride] the stride in bytes per element. Default = 0
    * @property {WebGLBuffer} buffer the buffer that contains the data for this attribute
@@ -200,7 +208,7 @@ define([
   /**
    * Use this type of array spec when TWGL can't guess the type or number of compoments of an array
    * @typedef {Object} FullArraySpec
-   * @property {(number[]|ArrayBuffer)} data The data of the array.
+   * @property {(number|number[]|ArrayBuffer)} data The data of the array. A number alone becomes the number of elements of type.
    * @property {number} [numComponents] number of components for `vertexAttribPointer`. Default is based on the name of the array.
    *    If `coord` is in the name assumes `numComponents = 2`.
    *    If `color` is in the name assumes `numComponents = 4`.
@@ -222,9 +230,9 @@ define([
    *
    * When passed to {@link module:twgl.createBufferInfoFromArrays} if an ArraySpec is `number[]` or `ArrayBuffer`
    * the types will be guessed based on the name. `indices` will be `Uint16Array`, everything else will
-   * be `Float32Array`
+   * be `Float32Array`. If an ArraySpec is a number it's the number of floats for an empty (zeroed) buffer.
    *
-   * @typedef {(number[]|ArrayBuffer|module:twgl.FullArraySpec)} ArraySpec
+   * @typedef {(number|number[]|ArrayBuffer|module:twgl.FullArraySpec)} ArraySpec
    * @memberOf module:twgl
    */
 
@@ -331,18 +339,41 @@ define([
       if (!isIndices(arrayName)) {
         var array = arrays[arrayName];
         var attribName = array.attrib || array.name || array.attribName || (defaults.attribPrefix + arrayName);
-        var typedArray = makeTypedArray(array, arrayName);
+        var buffer;
+        var type;
+        var normalization;
+        var numComponents;
+        var numValues;
+        if (typeof array === "number" || typeof array.data === "number") {
+          numValues = array.data || array;
+          var arrayType = array.type || Float32Array;
+          var numBytes = numValues * arrayType.BYTES_PER_ELEMENT;
+          type = typedArrays.getGLTypeForTypedArrayType(arrayType);
+          normalization = array.normalize !== undefined ? array.normalize : getNormalizationForTypedArrayType(arrayType);
+          numComponents = array.numComponents || array.size || guessNumComponentsFromName(arrayName, numValues);
+          buffer = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, numBytes, array.drawType || gl.STATIC_DRAW);
+        } else {
+          var typedArray = makeTypedArray(array, arrayName);
+          buffer = createBufferFromTypedArray(gl, typedArray, undefined, array.drawType);
+          type = typedArrays.getGLTypeForTypedArray(typedArray);
+          normalization = array.normalize !== undefined ? array.normalize : getNormalizationForTypedArray(typedArray);
+          numComponents = getNumComponents(array, arrayName);
+          numValues = typedArray.length;
+        }
         attribs[attribName] = {
-          buffer:        createBufferFromTypedArray(gl, typedArray, undefined, array.drawType),
-          numComponents: getNumComponents(array, arrayName),
-          type:          typedArrays.getGLTypeForTypedArray(typedArray),
-          normalize:     array.normalize !== undefined ? array.normalize : getNormalizationForTypedArray(typedArray),
+          buffer:        buffer,
+          numComponents: numComponents,
+          type:          type,
+          normalize:     normalization,
           stride:        array.stride || 0,
           offset:        array.offset || 0,
           drawType:      array.drawType,
         };
       }
     });
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
     return attribs;
   }
 
@@ -384,7 +415,7 @@ define([
    */
   function setAttribInfoBufferFromArray(gl, attribInfo, array, offset) {
     array = makeTypedArray(array);
-    if (offset) {
+    if (offset !== undefined) {
       gl.bindBuffer(gl.ARRAY_BUFFER, attribInfo.buffer);
       gl.bufferSubData(gl.ARRAY_BUFFER, offset, array);
     } else {
@@ -392,34 +423,72 @@ define([
     }
   }
 
+  function getBytesPerValueForGLType(gl, type) {
+    if (type === gl.BYTE)           return 1;  // eslint-disable-line
+    if (type === gl.UNSIGNED_BYTE)  return 1;  // eslint-disable-line
+    if (type === gl.SHORT)          return 2;  // eslint-disable-line
+    if (type === gl.UNSIGNED_SHORT) return 2;  // eslint-disable-line
+    if (type === gl.INT)            return 4;  // eslint-disable-line
+    if (type === gl.UNSIGNED_INT)   return 4;  // eslint-disable-line
+    if (type === gl.FLOAT)          return 4;  // eslint-disable-line
+    return 0;
+  }
+
   /**
    * tries to get the number of elements from a set of arrays.
    */
+  var positionKeys = ['position', 'positions', 'a_position'];
+  function getNumElementsFromNonIndexedArrays(arrays) {
+    var key;
+    for (var ii = 0; ii < positionKeys.length; ++ii) {
+      key = positionKeys[ii];
+      if (key in arrays) {
+        break;
+      }
+    }
+    if (ii === positionKeys.length) {
+      key = Object.keys(arrays)[0];
+    }
+    var array = arrays[key];
+    var length = getArray(array).length;
+    var numComponents = getNumComponents(array, key);
+    var numElements = length / numComponents;
+    if (length % numComponents > 0) {
+      throw "numComponents " + numComponents + " not correct for length " + length;
+    }
+    return numElements;
+  }
 
-  var getNumElementsFromNonIndexedArrays = (function() {
-    var positionKeys = ['position', 'positions', 'a_position'];
+  function getNumElementsFromAttributes(gl, attribs) {
+    var key;
+    for (var ii = 0; ii < positionKeys.length; ++ii) {
+      key = positionKeys[ii];
+      if (key in attribs) {
+        break;
+      }
+      key = defaults.attribPrefix + key;
+      if (key in attribs) {
+        break;
+      }
+    }
+    if (ii === positionKeys.length) {
+      key = Object.keys(attribs)[0];
+    }
+    var attrib = attribs[key];
+    gl.bindBuffer(gl.ARRAY_BUFFER, attrib.buffer);
+    var numBytes = gl.getBufferParameter(gl.ARRAY_BUFFER, gl.BUFFER_SIZE);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
-    return function getNumElementsFromNonIndexedArrays(arrays) {
-      var key;
-      for (var ii = 0; ii < positionKeys.length; ++ii) {
-        key = positionKeys[ii];
-        if (key in arrays) {
-          break;
-        }
-      }
-      if (ii === positionKeys.length) {
-        key = Object.keys(arrays)[0];
-      }
-      var array = arrays[key];
-      var length = getArray(array).length;
-      var numComponents = getNumComponents(array, key);
-      var numElements = length / numComponents;
-      if (length % numComponents > 0) {
-        throw "numComponents " + numComponents + " not correct for length " + length;
-      }
-      return numElements;
-    };
-  }());
+    var bytesPerValue = getBytesPerValueForGLType(gl, attrib.type);
+    var totalElements = numBytes / bytesPerValue;
+    var numComponents = attrib.numComponents || attrib.size;
+    // TODO: check stride
+    var numElements = totalElements / numComponents;
+    if (numElements % 1 !== 0) {
+      throw "numComponents " + numComponents + " not correct for length " + length;
+    }
+    return numElements;
+  }
 
   /**
    * @typedef {Object} BufferInfo
@@ -427,14 +496,6 @@ define([
    * @property {number} [elementType] The type of indices `UNSIGNED_BYTE`, `UNSIGNED_SHORT` etc..
    * @property {WebGLBuffer} [indices] The indices `ELEMENT_ARRAY_BUFFER` if any indices exist.
    * @property {Object.<string, module:twgl.AttribInfo>} [attribs] The attribs approriate to call `setAttributes`
-   * @memberOf module:twgl
-   */
-
-  /**
-   * @typedef {Object} VertexArrayInfo
-   * @property {number} numElements The number of elements to pass to `gl.drawArrays` or `gl.drawElements`.
-   * @property {number} [elementType] The type of indices `UNSIGNED_BYTE`, `UNSIGNED_SHORT` etc..
-   * @property {WebGLVertexArrayObject> [vertexArrayObject] a vertex array object
    * @memberOf module:twgl
    */
 
@@ -540,7 +601,7 @@ define([
       bufferInfo.numElements = indices.length;
       bufferInfo.elementType = typedArrays.getGLTypeForTypedArray(indices);
     } else {
-      bufferInfo.numElements = getNumElementsFromNonIndexedArrays(arrays);
+      bufferInfo.numElements = getNumElementsFromAttributes(gl, bufferInfo.attribs);
     }
 
     return bufferInfo;
@@ -608,59 +669,15 @@ define([
       buffers[key] = createBufferFromArray(gl, arrays[key], key);
     });
 
-    return buffers;
-  }
-
-  /**
-   * Creates a BufferInfo from an object of arrays.
-   *
-   * This can be passed to {@link module:twgl.setBuffersAndAttributes} and to
-   * {@link module:twgl:drawBufferInfo}.
-   *
-   * > **IMPORTANT:** Vertex Array Objects are **not** a direct analog for a BufferInfo. Vertex Array Objects
-   *   assign buffers to specific attributes at creation time. That means they can only be used with programs
-   *   who's attributes use the same attribute locations for the same purposes.
-   *
-   * > Bind your attribute locations by passing an array of attribute names to {@link module:twgl.createProgramInfo}
-   *   or use WebGL 2's GLSL ES 3's `layout(location = <num>)` to make sure locations match.
-   *
-   * also
-   *
-   * > **IMPORTANT:** After calling twgl.setBuffersAndAttribute with a BufferInfo that uses a Vertex Array Object
-   *   that Vertex Array Object will be bound. That means **ANY MANIPULATION OF ELEMENT_ARRAY_BUFFER or ATTRIBUTES**
-   *   will affect the Vertex Array Object state.
-   *
-   * > Call `gl.bindVertexArray(null)` to get back manipulating the global attributes and ELEMENT_ARRAY_BUFFER.
-   *
-   * @param {WebGLRenderingContext} gl A WebGLRenderingContext
-   * @param {module:twgl.ProgramInfo|module:twgl.ProgramInfo[]} programInfo a programInfo or array of programInfos
-   *
-   *    You need to make sure every attribute that will be used is bound. So for example assume shader 1
-   *    uses attributes A, B, C and shader 2 uses attributes A, B, D. If you only pass in the programInfo
-   *    for shader 1 then only attributes A, B, and C will have their attributes set because TWGL doesn't
-   *    now attribute D's location.
-   *
-   *    So, you can pass in both shader 1 and shader 2's programInfo
-   *
-   * @return {module:twgl.VertexArrayInfo} The created VertexArrayInfo
-   *
-   * @memberOf module:twgl/attributes
-   */
-  function createVertexArrayInfo(gl, programInfos, bufferInfo) {
-    var vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
-    if (!programInfos.length) {
-      programInfos = [programInfos];
+    // Ugh!
+    if (arrays.indices) {
+      buffers.numElements = arrays.indices.length;
+      buffers.elementType = typedArrays.getGLTypeForTypedArray(makeTypedArray(arrays.indices), 'indices');
+    } else {
+      buffers.numElements = getNumElementsFromNonIndexedArrays(arrays);
     }
-    programInfos.forEach(function(programInfo) {
-      twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
-    });
-    gl.bindVertexArray(null);
-    return {
-      numElements: bufferInfo.numElements,
-      elementType: bufferInfo.elementType,
-      vertexArrayObject: vao,
-    };
+
+    return buffers;
   }
 
   // Using quotes prevents Uglify from changing the names.
@@ -672,8 +689,6 @@ define([
     "createBufferFromTypedArray": createBufferFromTypedArray,
     "createBufferInfoFromArrays": createBufferInfoFromArrays,
     "setAttribInfoBufferFromArray": setAttribInfoBufferFromArray,
-
-    "createVertexArrayInfo": createVertexArrayInfo,
 
     "setAttributePrefix": setAttributePrefix,
 

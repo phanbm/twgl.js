@@ -36,6 +36,7 @@ define([
     './programs',
     './textures',
     './typedarrays',
+    './vertex-arrays',
     './utils',
   ], function(
     attributes,
@@ -44,6 +45,7 @@ define([
     programs,
     textures,
     typedArrays,
+    vertexArrays,
     utils) {
   "use strict";
 
@@ -139,6 +141,7 @@ define([
    *   for WebGL 2.
    *
    *   Note: According to webglstats.com 90% of devices support `OES_vertex_array_object`.
+   *   In fact AFAICT all devices support them it's just Microsoft Edge does not.
    *   If you just want to count on support I suggest using [this polyfill](https://github.com/KhronosGroup/WebGL/blob/master/sdk/demos/google/resources/OESVertexArrayObject.js)
    *   or ignoring devices that don't support them.
    *
@@ -201,9 +204,7 @@ define([
     var names = ["webgl", "experimental-webgl"];
     var context = null;
     for (var ii = 0; ii < names.length; ++ii) {
-      try {
-        context = canvas.getContext(names[ii], opt_attribs);
-      } catch(e) {}  // eslint-disable-line
+      context = canvas.getContext(names[ii], opt_attribs);
       if (context) {
         break;
       }
@@ -212,7 +213,12 @@ define([
   }
 
   /**
-   * Gets a WebGL context.
+   * Gets a WebGL1 context.
+   *
+   * Note: Will attempt to enable Vertex Array Objects
+   * and add WebGL2 entry points. (unless you first set defaults with
+   * `twgl.setDefaults({enableVertexArrayObjects: false})`;
+   *
    * @param {HTMLCanvasElement} canvas a canvas element.
    * @param {WebGLContextCreationAttirbutes} [opt_attribs] optional webgl context creation attributes
    * @memberOf module:twgl
@@ -238,12 +244,10 @@ define([
    * @return {WebGLRenderingContext} The created context.
    */
   function createContext(canvas, opt_attribs) {
-    var names = ["webgl2", "experimental-webgl2", "webgl", "experimental-webgl"];
+    var names = ["webgl2", "webgl", "experimental-webgl"];
     var context = null;
     for (var ii = 0; ii < names.length; ++ii) {
-      try {
-        context = canvas.getContext(names[ii], opt_attribs);
-      } catch(e) {}  // eslint-disable-line
+      context = canvas.getContext(names[ii], opt_attribs);
       if (context) {
         break;
       }
@@ -259,6 +263,10 @@ define([
    *    function isWebGL2(gl) {
    *      return gl.getParameter(gl.VERSION).indexOf("WebGL 2.0 ") == 0;
    *    }
+   *
+   * Note: For a WebGL1 context will attempt to enable Vertex Array Objects
+   * and add WebGL2 entry points. (unless you first set defaults with
+   * `twgl.setDefaults({enableVertexArrayObjects: false})`;
    *
    * @param {HTMLCanvasElement} canvas a canvas element.
    * @param {WebGLContextCreationAttirbutes} [opt_attribs] optional webgl context creation attributes
@@ -321,6 +329,7 @@ define([
     programs: programs,
     textures: textures,
     typedArrays: typedArrays,
+    vertexArrays: vertexArrays,
   };
   Object.keys(apis).forEach(function(name) {
     var srcApi = apis[name];

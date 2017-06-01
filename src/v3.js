@@ -198,9 +198,11 @@ define([], function() {
   function cross(a, b, dst) {
     dst = dst || new VecType(3);
 
+    var t1 = a[2] * b[0] - a[0] * b[2];
+    var t2 = a[0] * b[1] - a[1] * b[0];
     dst[0] = a[1] * b[2] - a[2] * b[1];
-    dst[1] = a[2] * b[0] - a[0] * b[2];
-    dst[2] = a[0] * b[1] - a[1] * b[0];
+    dst[1] = t1;
+    dst[2] = t2;
 
     return dst;
   }
@@ -235,6 +237,34 @@ define([], function() {
    */
   function lengthSq(v) {
     return v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+  }
+
+  /**
+   * Computes the distance between 2 points
+   * @param {module:twgl/v3.Vec3} a vector.
+   * @param {module:twgl/v3.Vec3} b vector.
+   * @return {number} distance between a and b
+   * @memberOf module:twgl/v3
+   */
+  function distance(a, b) {
+    const dx = a[0] - b[0];
+    const dy = a[1] - b[1];
+    const dz = a[2] - b[2];
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
+
+  /**
+   * Computes the square of the distance between 2 points
+   * @param {module:twgl/v3.Vec3} a vector.
+   * @param {module:twgl/v3.Vec3} b vector.
+   * @return {number} square of the distance between a and b
+   * @memberOf module:twgl/v3
+   */
+  function distanceSq(a, b) {
+    const dx = a[0] - b[0];
+    const dy = a[1] - b[1];
+    const dz = a[2] - b[2];
+    return dx * dx + dy * dy + dz * dz;
   }
 
   /**
@@ -343,6 +373,8 @@ define([], function() {
     "copy": copy,
     "create": create,
     "cross": cross,
+    "distance": distance,
+    "distanceSq": distanceSq,
     "divide": divide,
     "divScalar": divScalar,
     "dot": dot,

@@ -257,7 +257,21 @@ define([
 
   function samplerSetter(gl, type, unit, location) {
     var bindPoint = getBindPointForSamplerType(gl, type);
-    return function(texture) {
+    return utils.isWebGL2(gl) ? function(textureOrPair) {
+      let texture;
+      let sampler;
+      if (textureOrPair instanceof WebGLTexture) {
+        texture = textureOrPair;
+        sampler = null;
+      } else {
+        texture = textureOrPair.texture;
+        sampler = textureOrPair.sampler;
+      }
+      gl.uniform1i(location, unit);
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(bindPoint, texture);
+      gl.bindSampler(unit, sampler);
+    } : function(texture) {
       gl.uniform1i(location, unit);
       gl.activeTexture(gl.TEXTURE0 + unit);
       gl.bindTexture(bindPoint, texture);
@@ -271,7 +285,23 @@ define([
       units[ii] = unit + ii;
     }
 
-    return function(textures) {
+    return utils.isWebGL2(gl) ? function(textures) {
+      gl.uniform1iv(location, units);
+      textures.forEach(function(textureOrPair, index) {
+        gl.activeTexture(gl.TEXTURE0 + units[index]);
+        let texture;
+        let sampler;
+        if (textureOrPair instanceof WebGLTexture) {
+          texture = textureOrPair;
+          sampler = null;
+        } else {
+          texture = textureOrPair.texture;
+          sampler = textureOrPair.sampler;
+        }
+        gl.bindSampler(unit, sampler);
+        gl.bindTexture(bindPoint, texture);
+      });
+    } : function(textures) {
       gl.uniform1iv(location, units);
       textures.forEach(function(texture, index) {
         gl.activeTexture(gl.TEXTURE0 + units[index]);
@@ -321,10 +351,68 @@ define([
   typeMap[UNSIGNED_INT_SAMPLER_CUBE]     = { Type: null,         size:  0, setter: samplerSetter,    arraySetter: samplerArraySetter, bindPoint: TEXTURE_CUBE_MAP, };
   typeMap[UNSIGNED_INT_SAMPLER_2D_ARRAY] = { Type: null,         size:  0, setter: samplerSetter,    arraySetter: samplerArraySetter, bindPoint: TEXTURE_2D_ARRAY, };
 
+  function floatAttribSetter(gl, index) {
+    return function(b) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.buffer);
+      gl.enableVertexAttribArray(index);
+      gl.vertexAttribPointer(
+          index, b.numComponents || b.size, b.type || gl.FLOAT, b.normalize || false, b.stride || 0, b.offset || 0);
+    };
+  }
+
+  function intAttribSetter(gl, index) {
+    return function(b) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.buffer);
+      gl.enableVertexAttribArray(index);
+      gl.vertexAttribIPointer(
+          index, b.numComponents || b.size, b.type || gl.INT, b.stride || 0, b.offset || 0);
+    };
+  }
+
+  function matAttribSetter(gl, index, typeInfo) {
+    var defaultSize = typeInfo.size;
+    var count = typeInfo.count;
+
+    return function(b) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.buffer);
+      var numComponents = b.size || b.numComponents || defaultSize;
+      var size = numComponents / count;
+      var type = b.type || gl.FLOAT;
+      var typeInfo = typeMap[type];
+      var stride = typeInfo.size * numComponents;
+      var normalize = b.normalize || false;
+      var offset = b.offset || 0;
+      var rowOffset = stride / count;
+      for (var i = 0; i < count; ++i) {
+        gl.enableVertexAttribArray(index + i);
+        gl.vertexAttribPointer(
+            index + i, size, type, normalize, stride, offset + rowOffset * i);
+      }
+    };
+  }
+
+
+
   var attrTypeMap = {};
-  attrTypeMap[FLOAT_MAT2] = { size:  4, count: 2, };
-  attrTypeMap[FLOAT_MAT3] = { size:  9, count: 3, };
-  attrTypeMap[FLOAT_MAT4] = { size: 16, count: 4, };
+  attrTypeMap[FLOAT]             = { size:  4, setter: floatAttribSetter, };
+  attrTypeMap[FLOAT_VEC2]        = { size:  8, setter: floatAttribSetter, };
+  attrTypeMap[FLOAT_VEC3]        = { size: 12, setter: floatAttribSetter, };
+  attrTypeMap[FLOAT_VEC4]        = { size: 16, setter: floatAttribSetter, };
+  attrTypeMap[INT]               = { size:  4, setter: intAttribSetter,   };
+  attrTypeMap[INT_VEC2]          = { size:  8, setter: intAttribSetter,   };
+  attrTypeMap[INT_VEC3]          = { size: 12, setter: intAttribSetter,   };
+  attrTypeMap[INT_VEC4]          = { size: 16, setter: intAttribSetter,   };
+  attrTypeMap[UNSIGNED_INT]      = { size:  4, setter: intAttribSetter,   };
+  attrTypeMap[UNSIGNED_INT_VEC2] = { size:  8, setter: intAttribSetter,   };
+  attrTypeMap[UNSIGNED_INT_VEC3] = { size: 12, setter: intAttribSetter,   };
+  attrTypeMap[UNSIGNED_INT_VEC4] = { size: 16, setter: intAttribSetter,   };
+  attrTypeMap[BOOL]              = { size:  4, setter: intAttribSetter,   };
+  attrTypeMap[BOOL_VEC2]         = { size:  8, setter: intAttribSetter,   };
+  attrTypeMap[BOOL_VEC3]         = { size: 12, setter: intAttribSetter,   };
+  attrTypeMap[BOOL_VEC4]         = { size: 16, setter: intAttribSetter,   };
+  attrTypeMap[FLOAT_MAT2]        = { size:  4, setter: matAttribSetter,   count: 2, };
+  attrTypeMap[FLOAT_MAT3]        = { size:  9, setter: matAttribSetter,   count: 3, };
+  attrTypeMap[FLOAT_MAT4]        = { size: 16, setter: matAttribSetter,   count: 4, };
 
   // make sure we don't see a global gl
   var gl = undefined;  // eslint-disable-line
@@ -398,17 +486,97 @@ define([
   }
 
   /**
-   * Creates a program, attaches shaders, binds attrib locations, links the
+   * @typedef {Object} ProgramOptions
+   * @property {function(string)} [errorCallback] callback for errors
+   * @property {Object.<string,number>} [attribLocations] a attribute name to location map
+   * @property {(module:twgl.BufferInfo|Object.<string,module:twgl.AttribInfo>|string[])} [transformFeedbackVaryings] If passed
+   *   a BufferInfo will use the attribs names inside. If passed an object of AttribInfos will use the names from that object. Otherwise
+   *   you can pass an array of names.
+   * @property {number} [transformFeedbackMode] the mode to pass `gl.transformFeedbackVaryings`. Defaults to `SEPARATE_ATTRIBS`.
+   * @memberOf module:twgl
+   */
+
+  /**
+   * Gets the program options based on all these optional arguments
+   * @param {module:twgl.ProgramOptions|string[]} [opt_attribs] Options for the program or an array of attribs names. Locations will be assigned by index if not passed in
+   * @param {number[]} [opt_locations] The locations for the. A parallel array to opt_attribs letting you assign locations.
+   * @param {module:twgl.ErrorCallback} [opt_errorCallback] callback for errors. By default it just prints an error to the console
+   *        on error. If you want something else pass an callback. It's passed an error message.
+   * @return {module:twgl.ProgramOptions} an instance of ProgramOptions based on the arguments pased on
+   */
+  function getProgramOptions(opt_attribs, opt_locations, opt_errorCallback) {
+    if (typeof opt_locations === 'function') {
+      opt_errorCallback = opt_locations;
+      opt_locations = undefined;
+    }
+    if (typeof opt_attribs === 'function') {
+      opt_errorCallback = opt_attribs;
+      opt_attribs = undefined;
+    } else if (opt_attribs && !Array.isArray(opt_attribs)) {
+      // If we have an errorCallback we can just return this object
+      // Otherwise we need to construct one with default errorCallback
+      if (opt_attribs.errorCallback) {
+        return opt_attribs;
+      }
+      var opt = opt_attribs;
+      opt_errorCallback = opt.errorCallback;
+      opt_attribs = opt.attribLocations;
+      var transformFeedbackVaryings = opt.transformFeedbackVaryings;
+    }
+
+    var options = {
+      errorCallback: opt_errorCallback || error,
+      transformFeedbackVaryings: transformFeedbackVaryings,
+    };
+
+    if (opt_attribs) {
+      var attribLocations = {};
+      if (Array.isArray(opt_attribs)) {
+        opt_attribs.forEach(function(attrib,  ndx) {
+          attribLocations[attrib] = opt_locations ? opt_locations[ndx] : ndx;
+        });
+      } else {
+        attribLocations = opt_attribs;
+      }
+      options.attribLocations = attribLocations;
+    }
+
+    return options;
+  }
+
+  var defaultShaderType = [
+    "VERTEX_SHADER",
+    "FRAGMENT_SHADER",
+  ];
+
+  function getShaderTypeFromScriptType(scriptType) {
+    if (scriptType.indexOf("frag") >= 0) {
+      return gl.FRAGMENT_SHADER;
+    } else if (scriptType.indexOf("vert") >= 0) {
+      return gl.VERTEX_SHADER;
+    }
+    return undefined;
+  }
+
+  function deleteShaders(gl, shaders) {
+    shaders.forEach(function(shader) {
+      gl.deleteShader(shader);
+    });
+  }
+
+  /**
+   * Creates a program, attaches (and/or compiles) shaders, binds attrib locations, links the
    * program and calls useProgram.
    *
-   * NOTE: There are 3 signatures for this function
+   * NOTE: There are 4 signatures for this function
    *
+   *     twgl.createProgram(gl, [vs, fs], options);
    *     twgl.createProgram(gl, [vs, fs], opt_errFunc);
    *     twgl.createProgram(gl, [vs, fs], opt_attribs, opt_errFunc);
    *     twgl.createProgram(gl, [vs, fs], opt_attribs, opt_locations, opt_errFunc);
    *
-   * @param {WebGLShader[]} shaders The shaders to attach
-   * @param {string[]} [opt_attribs] An array of attribs names. Locations will be assigned by index if not passed in
+   * @param {WebGLShader[]|string[]} shaders The shaders to attach, or element ids for their source, or strings that contain their source
+   * @param {module:twgl.ProgramOptions|string[]} [opt_attribs] Options for the program or an array of attribs names. Locations will be assigned by index if not passed in
    * @param {number[]} [opt_locations] The locations for the. A parallel array to opt_attribs letting you assign locations.
    * @param {module:twgl.ErrorCallback} [opt_errorCallback] callback for errors. By default it just prints an error to the console
    *        on error. If you want something else pass an callback. It's passed an error message.
@@ -417,38 +585,63 @@ define([
    */
   function createProgram(
       gl, shaders, opt_attribs, opt_locations, opt_errorCallback) {
-    if (typeof opt_locations === 'function') {
-      opt_errorCallback = opt_locations;
-      opt_locations = undefined;
+    var progOptions = getProgramOptions(opt_attribs, opt_locations, opt_errorCallback);
+    var realShaders = [];
+    var newShaders = [];
+    for (var ndx = 0; ndx < shaders.length; ++ndx) {
+      var shader = shaders[ndx];
+      if (typeof (shader) === 'string') {
+        const elem = document.getElementById(shader);
+        const src = elem ? elem.text : shader;
+        var type = gl[defaultShaderType[ndx]];
+        if (elem && elem.type) {
+          type = getShaderTypeFromScriptType(elem.type) || type;
+        }
+        shader = loadShader(gl, src, type, progOptions.errorCallback);
+        newShaders.push(shader);
+      }
+      if (shader instanceof WebGLShader) {
+        realShaders.push(shader);
+      }
     }
-    if (typeof opt_attribs === 'function') {
-      opt_errorCallback = opt_attribs;
-      opt_attribs = undefined;
+
+    if (realShaders.length !== shaders.length) {
+      programOptions.errorCallback("not enough shaders for program");
+      deleteShaders(gl, newShaders);
+      return null;
     }
-    var errFn = opt_errorCallback || error;
+
     var program = gl.createProgram();
-    shaders.forEach(function(shader) {
+    realShaders.forEach(function(shader) {
       gl.attachShader(program, shader);
     });
-    if (opt_attribs) {
-      opt_attribs.forEach(function(attrib,  ndx) {
-        gl.bindAttribLocation(
-            program,
-            opt_locations ? opt_locations[ndx] : ndx,
-            attrib);
+    if (progOptions.attribLocations) {
+      Object.keys(progOptions.attribLocations).forEach(function(attrib) {
+        gl.bindAttribLocation(program, progOptions.attribLocations[attrib], attrib);
       });
+    }
+    var varyings = progOptions.transformFeedbackVaryings;
+    if (varyings) {
+      if (varyings.attribs) {
+        varyings = varyings.attribs;
+      }
+      if (!Array.isArray(varyings)) {
+        varyings = Object.keys(varyings);
+      }
+      gl.transformFeedbackVaryings(program, varyings, progOptions.transformFeedbackMode || gl.SEPARATE_ATTRIBS);
     }
     gl.linkProgram(program);
 
     // Check the link status
     var linked = gl.getProgramParameter(program, gl.LINK_STATUS);
     if (!linked) {
-        // something went wrong with the link
-        var lastError = gl.getProgramInfoLog(program);
-        errFn("Error in program linking:" + lastError);
+      // something went wrong with the link
+      var lastError = gl.getProgramInfoLog(program);
+      progOptions.errorCallback("Error in program linking:" + lastError);
 
-        gl.deleteProgram(program);
-        return null;
+      gl.deleteProgram(program);
+      deleteShaders(gl, newShaders);
+      return null;
     }
     return program;
   }
@@ -465,38 +658,26 @@ define([
   function createShaderFromScript(
       gl, scriptId, opt_shaderType, opt_errorCallback) {
     var shaderSource = "";
-    var shaderType;
     var shaderScript = document.getElementById(scriptId);
     if (!shaderScript) {
       throw "*** Error: unknown script element" + scriptId;
     }
     shaderSource = shaderScript.text;
 
-    if (!opt_shaderType) {
-      if (shaderScript.type === "x-shader/x-vertex") {
-        shaderType = gl.VERTEX_SHADER;
-      } else if (shaderScript.type === "x-shader/x-fragment") {
-        shaderType = gl.FRAGMENT_SHADER;
-      } else if (shaderType !== gl.VERTEX_SHADER && shaderType !== gl.FRAGMENT_SHADER) {
-        throw "*** Error: unknown shader type";
-      }
+    var shaderType = opt_shaderType || getShaderTypeFromScriptType(shaderScript.type);
+    if (!shaderType) {
+      throw "*** Error: unknown shader type";
     }
 
-    return loadShader(
-        gl, shaderSource, opt_shaderType ? opt_shaderType : shaderType,
-        opt_errorCallback);
+    return loadShader(gl, shaderSource, shaderType, opt_errorCallback);
   }
-
-  var defaultShaderType = [
-    "VERTEX_SHADER",
-    "FRAGMENT_SHADER",
-  ];
 
   /**
    * Creates a program from 2 script tags.
    *
-   * NOTE: There are 3 signatures for this function
+   * NOTE: There are 4 signatures for this function
    *
+   *     twgl.createProgramFromScripts(gl, [vs, fs], opt_options);
    *     twgl.createProgramFromScripts(gl, [vs, fs], opt_errFunc);
    *     twgl.createProgramFromScripts(gl, [vs, fs], opt_attribs, opt_errFunc);
    *     twgl.createProgramFromScripts(gl, [vs, fs], opt_attribs, opt_locations, opt_errFunc);
@@ -515,30 +696,32 @@ define([
    */
   function createProgramFromScripts(
       gl, shaderScriptIds, opt_attribs, opt_locations, opt_errorCallback) {
+    var progOptions = getProgramOptions(opt_attribs, opt_locations, opt_errorCallback);
     var shaders = [];
     for (var ii = 0; ii < shaderScriptIds.length; ++ii) {
       var shader = createShaderFromScript(
-          gl, shaderScriptIds[ii], gl[defaultShaderType[ii]], opt_errorCallback);
+          gl, shaderScriptIds[ii], gl[defaultShaderType[ii]], progOptions.errorCallback);
       if (!shader) {
         return null;
       }
       shaders.push(shader);
     }
-    return createProgram(gl, shaders, opt_attribs, opt_locations, opt_errorCallback);
+    return createProgram(gl, shaders, progOptions);
   }
 
   /**
    * Creates a program from 2 sources.
    *
-   * NOTE: There are 3 signatures for this function
+   * NOTE: There are 4 signatures for this function
    *
+   *     twgl.createProgramFromSource(gl, [vs, fs], opt_options);
    *     twgl.createProgramFromSource(gl, [vs, fs], opt_errFunc);
    *     twgl.createProgramFromSource(gl, [vs, fs], opt_attribs, opt_errFunc);
    *     twgl.createProgramFromSource(gl, [vs, fs], opt_attribs, opt_locations, opt_errFunc);
    *
    * @param {WebGLRenderingContext} gl The WebGLRenderingContext
    *        to use.
-   * @param {string[]} shaderSourcess Array of sources for the
+   * @param {string[]} shaderSources Array of sources for the
    *        shaders. The first is assumed to be the vertex shader,
    *        the second the fragment shader.
    * @param {string[]} [opt_attribs] An array of attribs names. Locations will be assigned by index if not passed in
@@ -550,16 +733,17 @@ define([
    */
   function createProgramFromSources(
       gl, shaderSources, opt_attribs, opt_locations, opt_errorCallback) {
+    var progOptions = getProgramOptions(opt_attribs, opt_locations, opt_errorCallback);
     var shaders = [];
     for (var ii = 0; ii < shaderSources.length; ++ii) {
       var shader = loadShader(
-          gl, shaderSources[ii], gl[defaultShaderType[ii]], opt_errorCallback);
+          gl, shaderSources[ii], gl[defaultShaderType[ii]], progOptions.errorCallback);
       if (!shader) {
         return null;
       }
       shaders.push(shader);
     }
-    return createProgram(gl, shaders, opt_attribs, opt_locations, opt_errorCallback);
+    return createProgram(gl, shaders, progOptions);
   }
 
   /**
@@ -590,23 +774,25 @@ define([
       if (!typeInfo) {
         throw ("unknown type: 0x" + type.toString(16)); // we should never get here.
       }
+      var setter;
       if (typeInfo.bindPoint) {
         // it's a sampler
         var unit = textureUnit;
         textureUnit += uniformInfo.size;
-
         if (isArray) {
-          return typeInfo.arraySetter(gl, type, unit, location, uniformInfo.size);
+          setter = typeInfo.arraySetter(gl, type, unit, location, uniformInfo.size);
         } else {
-          return typeInfo.setter(gl, type, unit, location, uniformInfo.size);
+          setter = typeInfo.setter(gl, type, unit, location, uniformInfo.size);
         }
       } else {
         if (typeInfo.arraySetter && isArray) {
-          return typeInfo.arraySetter(gl, location);
+          setter = typeInfo.arraySetter(gl, location);
         } else {
-          return typeInfo.setter(gl, location);
+          setter = typeInfo.setter(gl, location);
         }
       }
+      setter.location = location;
+      return setter;
     }
 
     var uniformSetters = { };
@@ -626,6 +812,110 @@ define([
       uniformSetters[name] = setter;
     }
     return uniformSetters;
+  }
+
+  /**
+   * @typedef {Object} TransformFeedbackInfo
+   * @property {number} index index of transform feedback
+   * @property {number} type GL type
+   * @property {number} size 1 - 4
+   * @memberOf module:twgl
+   */
+
+  /**
+   * Create TransformFeedbackInfo for passing to bind/unbindTransformFeedbackInfo.
+   * @param {WebGLRenderingContext} gl The WebGLRenderingContext to use.
+   * @param {WebGLProgram} program an existing WebGLProgram.
+   * @return {Object<string, module:twgl.TransformFeedbackInfo>}
+   * @memberOf module:twgl
+   */
+  function createTransformFeedbackInfo(gl, program) {
+    var info = {};
+    var numVaryings = gl.getProgramParameter(program, gl.TRANSFORM_FEEDBACK_VARYINGS);
+    for (var ii = 0; ii < numVaryings; ++ii) {
+      var varying = gl.getTransformFeedbackVarying(program, ii);
+      info[varying.name] = {
+        index: ii,
+        type: varying.type,
+        size: varying.size,
+      };
+    }
+    return info;
+  }
+
+  /**
+   * Binds buffers for transform feedback.
+   *
+   * @param {WebGLRenderingContext} gl The WebGLRenderingContext to use.
+   * @param {(module:twgl.ProgramInfo|Object<string, module:twgl.TransformFeedbackInfo>)} transformFeedbackInfo A ProgramInfo or TransformFeedbackInfo.
+   * @param {(module:twgl.BufferInfo|Object<string, module:twgl.AttribInfo>)} [bufferInfo] A BufferInfo or set of AttribInfos.
+   * @memberOf module:twgl
+   */
+  function bindTransformFeedbackInfo(gl, transformFeedbackInfo, bufferInfo) {
+    if (transformFeedbackInfo.transformFeedbackInfo) {
+      transformFeedbackInfo = transformFeedbackInfo.transformFeedbackInfo;
+    }
+    if (bufferInfo.attribs) {
+      bufferInfo = bufferInfo.attribs;
+    }
+    for (var name in bufferInfo) {
+      var varying = transformFeedbackInfo[name];
+      if (varying) {
+        var buf = bufferInfo[name];
+        if (buf.offset) {
+          gl.bindBufferRange(gl.TRANSFORM_FEEDBACK_BUFFER, varying.index, buf.buffer, buf.offset, buf.size);
+        } else {
+          gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, varying.index, buf.buffer);
+        }
+      }
+    }
+  }
+
+  /**
+   * Unbinds buffers afetr transform feedback.
+   *
+   * Buffers can not be bound to 2 bind points so if you try to bind a buffer used
+   * in a transform feedback as an ARRAY_BUFFER for an attribute it will fail.
+   *
+   * This function unbinds all buffers that were bound with {@link module:twgl.bindTransformFeedbackInfo}.
+   *
+   * @param {WebGLRenderingContext} gl The WebGLRenderingContext to use.
+   * @param {(module:twgl.ProgramInfo|Object<string, module:twgl.TransformFeedbackInfo>)} transformFeedbackInfo A ProgramInfo or TransformFeedbackInfo.
+   * @param {(module:twgl.BufferInfo|Object<string, module:twgl.AttribInfo>)} [bufferInfo] A BufferInfo or set of AttribInfos.
+   */
+  function unbindTransformFeedbackInfo(gl, transformFeedbackInfo, bufferInfo) {
+    if (transformFeedbackInfo.transformFeedbackInfo) {
+      transformFeedbackInfo = transformFeedbackInfo.transformFeedbackInfo;
+    }
+    if (bufferInfo.attribs) {
+      bufferInfo = bufferInfo.attribs;
+    }
+    for (var name in bufferInfo) {
+      var varying = transformFeedbackInfo[name];
+      if (varying) {
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, varying.index, null);
+      }
+    }
+  }
+
+  /**
+   * Creates a transform feedback and sets the buffers
+   * @param {WebGLRenderingContext} gl The WebGLRenderingContext to use.
+   * @param {module:twgl.ProgramInfo} programInfo A ProgramInfo as returned from {@link module:twgl.createProgramInfo}
+   * @param {(module:twgl.BufferInfo|Object<string, module:twgl.AttribInfo>)} [bufferInfo] A BufferInfo or set of AttribInfos.
+   * @return {WebGLTransformFeedback} the created transform feedback
+   * @memberOf module:twgl
+   */
+  function createTransformFeedback(gl, programInfo, bufferInfo) {
+    var tf = gl.createTransformFeedback();
+    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, tf);
+    gl.useProgram(programInfo.program);
+    bindTransformFeedbackInfo(gl, programInfo, bufferInfo);
+    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
+    // This is only needed because of a bug in Chrome 56. Will remove
+    // when chrome fixes it.
+    unbindTransformFeedbackInfo(gl, programInfo, bufferInfo);
+    return tf;
   }
 
   /**
@@ -988,6 +1278,18 @@ define([
    *     twgl.setUniforms(programInfo, uniforms);
    *     twgl.setUniforms(programInfo, moreUniforms);
    *
+   * You can also add WebGLSamplers to uniform samplers as in
+   *
+   *     var uniforms = {
+   *       u_someSampler: {
+   *         texture: someWebGLTexture,
+   *         sampler: someWebGLSampler,
+   *       },
+   *     };
+   *
+   * In which case both the sampler and texture will be bound to the
+   * same unit.
+   *
    * @param {(module:twgl.ProgramInfo|Object.<string, function>)} setters a `ProgramInfo` as returned from `createProgramInfo` or the setters returned from
    *        `createUniformSetters`.
    * @param {Object.<string, ?>} values an object with values for the
@@ -1052,37 +1354,6 @@ define([
     var attribSetters = {
     };
 
-    function createAttribSetter(index) {
-      return function(b) {
-        gl.bindBuffer(gl.ARRAY_BUFFER, b.buffer);
-        gl.enableVertexAttribArray(index);
-        gl.vertexAttribPointer(
-            index, b.numComponents || b.size, b.type || gl.FLOAT, b.normalize || false, b.stride || 0, b.offset || 0);
-      };
-    }
-
-    function createMatAttribSetter(index, typeInfo) {
-      var defaultSize = typeInfo.size;
-      var count = typeInfo.count;
-
-      return function(b) {
-        gl.bindBuffer(gl.ARRAY_BUFFER, b.buffer);
-        var numComponents = b.size || b.numComponents || defaultSize;
-        var size = numComponents / count;
-        var type = b.type || gl.FLOAT;
-        var typeInfo = typeMap[type];
-        var stride = typeInfo.size * numComponents;
-        var normalize = b.normalize || false;
-        var offset = b.offset || 0;
-        var rowOffset = stride / count;
-        for (var i = 0; i < count; ++i) {
-          gl.enableVertexAttribArray(index + i);
-          gl.vertexAttribPointer(
-              index + i, size, type, normalize, stride, offset + rowOffset * i);
-        }
-      };
-    }
-
     var numAttribs = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
     for (var ii = 0; ii < numAttribs; ++ii) {
       var attribInfo = gl.getActiveAttrib(program, ii);
@@ -1091,11 +1362,9 @@ define([
       }
       var index = gl.getAttribLocation(program, attribInfo.name);
       var typeInfo = attrTypeMap[attribInfo.type];
-      if (typeInfo) {
-        attribSetters[attribInfo.name] = createMatAttribSetter(index, typeInfo);
-      } else {
-        attribSetters[attribInfo.name] = createAttribSetter(index);
-      }
+      var setter = typeInfo.setter(gl, index, typeInfo);
+      setter.location = index;
+      attribSetters[attribInfo.name] = setter;
     }
 
     return attribSetters;
@@ -1216,6 +1485,8 @@ define([
    * @property {WebGLProgram} program A shader program
    * @property {Object<string, function>} uniformSetters object of setters as returned from createUniformSetters,
    * @property {Object<string, function>} attribSetters object of setters as returned from createAttribSetters,
+   * @propetty {module:twgl.UniformBlockSpec} [uniformBlockSpace] a uniform block spec for making UniformBlockInfos with createUniformBlockInfo etc..
+   * @property {Object<string, module:twgl.TransformFeedbackInfo>} [transformFeedbackInfo] info for transform feedbacks
    * @memberOf module:twgl
    */
 
@@ -1247,6 +1518,7 @@ define([
 
     if (utils.isWebGL2(gl)) {
       programInfo.uniformBlockSpec = createUniformBlockSpecFromProgram(gl, program);
+      programInfo.transformFeedbackInfo = createTransformFeedbackInfo(gl, program);
     }
 
     return programInfo;
@@ -1263,18 +1535,19 @@ define([
    *        attribSetters: object of setters as returned from createAttribSetters,
    *     }
    *
-   * NOTE: There are 3 signatures for this function
+   * NOTE: There are 4 signatures for this function
    *
+   *     twgl.createProgramInfo(gl, [vs, fs], options);
    *     twgl.createProgramInfo(gl, [vs, fs], opt_errFunc);
    *     twgl.createProgramInfo(gl, [vs, fs], opt_attribs, opt_errFunc);
    *     twgl.createProgramInfo(gl, [vs, fs], opt_attribs, opt_locations, opt_errFunc);
    *
    * @param {WebGLRenderingContext} gl The WebGLRenderingContext
    *        to use.
-   * @param {string[]} shaderSourcess Array of sources for the
+   * @param {string[]} shaderSources Array of sources for the
    *        shaders or ids. The first is assumed to be the vertex shader,
    *        the second the fragment shader.
-   * @param {string[]} [opt_attribs] An array of attribs names. Locations will be assigned by index if not passed in
+   * @param {module:twgl.ProgramOptions|string[]} [opt_attribs] Options for the program or an array of attribs names. Locations will be assigned by index if not passed in
    * @param {number[]} [opt_locations] The locations for the attributes. A parallel array to opt_attribs letting you assign locations.
    * @param {module:twgl.ErrorCallback} opt_errorCallback callback for errors. By default it just prints an error to the console
    *        on error. If you want something else pass an callback. It's passed an error message.
@@ -1283,22 +1556,14 @@ define([
    */
   function createProgramInfo(
       gl, shaderSources, opt_attribs, opt_locations, opt_errorCallback) {
-    if (typeof opt_locations === 'function') {
-      opt_errorCallback = opt_locations;
-      opt_locations = undefined;
-    }
-    if (typeof opt_attribs === 'function') {
-      opt_errorCallback = opt_attribs;
-      opt_attribs = undefined;
-    }
-    var errFn = opt_errorCallback || error;
+    var progOptions = getProgramOptions(opt_attribs, opt_locations, opt_errorCallback);
     var good = true;
     shaderSources = shaderSources.map(function(source) {
       // Lets assume if there is no \n it's an id
       if (source.indexOf("\n") < 0) {
         var script = document.getElementById(source);
         if (!script) {
-          errFn("no element with id: " + source);
+          progOptions.errorCallback("no element with id: " + source);
           good = false;
         } else {
           source = script.text;
@@ -1309,7 +1574,7 @@ define([
     if (!good) {
       return null;
     }
-    var program = createProgramFromSources(gl, shaderSources, opt_attribs, opt_locations, opt_errorCallback);
+    var program = createProgramFromSources(gl, shaderSources, progOptions);
     if (!program) {
       return null;
     }
@@ -1330,6 +1595,10 @@ define([
     "createUniformBlockSpecFromProgram": createUniformBlockSpecFromProgram,
     "createUniformBlockInfoFromProgram": createUniformBlockInfoFromProgram,
     "createUniformBlockInfo": createUniformBlockInfo,
+
+    "createTransformFeedback": createTransformFeedback,
+    "createTransformFeedbackInfo": createTransformFeedbackInfo,
+    "bindTransformFeedbackInfo": bindTransformFeedbackInfo,
 
     "setAttributes": setAttributes,
     "setBuffersAndAttributes": setBuffersAndAttributes,

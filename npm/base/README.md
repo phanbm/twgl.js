@@ -20,9 +20,9 @@ Not including the shaders (which is a simple quad shader) here's the entire code
 
 ```html
 <canvas id="c"></canvas>
-<script src="../dist/2.x/twgl-full.min.js"></script>
+<script src="../dist/3.x/twgl-full.min.js"></script>
 <script>
-  var gl = twgl.getWebGLContext(document.getElementById("c"));
+  var gl = document.getElementById("c").getContext("webgl");
   var programInfo = twgl.createProgramInfo(gl, ["vs", "fs"]);
 
   var arrays = {
@@ -405,6 +405,12 @@ gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDE
 
 *   [uniform buffer objects](http://twgljs.org/examples/uniform-buffer-objects.html)
 *   [3d textures tone mapping](http://twgljs.org/examples/3d-textures-tone-mapping.html)
+*   [samplers](http://twgljs.org/examples/samplers.html)
+*   [webgl2 textures](http://twgljs.org/examples/webgl2-textures.html)
+*   [3d texture volume](http://twgljs.org/examples/3d-texture-volume.html)
+*   [3d texture volume no buffers](http://twgljs.org/examples/3d-texture-volume-no-buffers.html)
+*   [2d array texture](http://twgljs.org/examples/2d-array-texture.html)
+*   [transform feedback](http://twgljs.org/examples/transform-feedback.html)
 
 ## AMD support
 
@@ -508,7 +514,7 @@ var attribs = {
   a_texcoord: { buffer: texcoordBuffer, size: 2, },
   a_color:    { buffer: colorBuffer,    size: 4, type: gl.UNSIGNED_BYTE, normalize: true, },
 };
-setAttributes(attribSetters, attribs);
+twgl.setAttributes(attribSetters, attribs);
 ```
 
 The point of the example above is TWGL is a **thin** wrapper. All it's doing is trying
@@ -518,8 +524,5 @@ to make common WebGL operations easier and less verbose. Feel free to mix it wit
 
 Try [webglfundamentals.org](http://webglfundamentals.org)
 
-## Future
-
-*   What needs to change for WebGL 2.0?
 
 

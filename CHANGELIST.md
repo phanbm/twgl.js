@@ -1,5 +1,100 @@
 #Changelist
 
+*   3.4.0
+
+    *   Support `minMag` for framebuffers
+
+*   3.3.0
+
+    *   Make `createProgram` accept ids, source, and shaders as input.
+
+        This kind of removes the need for `createProgramFromSources` and
+        `createProgramFromScripts`
+
+*   3.1.0
+
+    *   Add support for transform feedback
+
+        At least an attempt at something. I'd need more examples
+        of how it's used to see if it fits.
+
+*   3.0.0
+
+    *   Fix package.json
+
+        It was pointing to `dist` instead of `dist/2.x`. Because
+        that means fixing it will bump users of npm 2.x from
+        1.x to 2.x I had to bump to 3.x because and a breaking
+        change.
+
+*   2.8.2
+
+    *   Use spec compatible texSubImage3D parameters
+
+*   2.8.1
+
+    *   Fill out TEXTURE_2D_ARRAY with first image
+
+        This is so there is something to render in all slices
+
+*   2.8
+
+    *   Add support for TEXTURE_2D_ARRAY
+
+        You can pass a list of images to `twgl.createTexture` and it will load each
+        image into a slice of a `TEXTURE_2D_ARRAY` if the target is `TEXTURE_2D_ARRAY`
+
+*   2.7
+
+    *   mangle some property names
+
+        saves about 4k
+
+    *   add `minMag` property to `TextureOptions`
+
+        It sets both `TEXTURE_MIN_FILTER` and `TEXTURE_MAG_FILTER`
+
+    *   Change texture filtering to use internalFormat
+
+        In WebGL1 we checked power of 2 in width and height. In WebGL2
+        we check if the internal format supports filtering. This might
+        break things going from WebGL1 to WebGL2 if you expected a
+        non-power-of-2 texture to use gl.LINEAR.
+
+        Note: One issue is TWGL can't tell if you've enabled `OES_texture_float_linear`
+        so you use float textures it can't tell if it can generate mips or not
+        and you'll have to be explicit with texture settings. Currently it assumes
+        you can generate mips. Pass in `auto: false` to `createTexture(s)` if you didn't
+        enable `OES_texture_float_linear` or similarly for half float formats.
+
+    *   Support samplers
+
+    *   Support webgl2 texture formats
+
+*   2.6.2
+
+    *   remove "experimental-webgl2" which never existed
+
+*   2.6.1
+
+    *   allow offset=0 in setAttributeInfoBufferFromArray
+
+*   2.6
+
+    *   make createBuffersFromArrays add a numElements and elementType properties.
+
+*   2.5
+
+    *   switch to webpack + babel
+
+*   2.4
+
+    *   Support int attributes
+
+*   2.3
+
+    *   Make all `createProgramXXX` functions take a `ProgramOptions` argument
+
 *   2.1
 
     *   Made guessing numComponents for attributes case insensitive

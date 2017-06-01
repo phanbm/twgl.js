@@ -61,12 +61,17 @@ define([
   };
   var isArrayBuffer = typedArrays.isArrayBuffer;
 
+  // Should we make this on demand?
+  var ctx = document.createElement("canvas").getContext("2d");
+
   /* PixelFormat */
   var ALPHA                          = 0x1906;
   var RGB                            = 0x1907;
   var RGBA                           = 0x1908;
   var LUMINANCE                      = 0x1909;
   var LUMINANCE_ALPHA                = 0x190A;
+  var DEPTH_COMPONENT                = 0x1902;
+  var DEPTH_STENCIL                  = 0x84F9;
 
   /* TextureWrapMode */
   var REPEAT                         = 0x2901;  // eslint-disable-line
@@ -80,6 +85,325 @@ define([
   var LINEAR_MIPMAP_NEAREST          = 0x2701;  // eslint-disable-line
   var NEAREST_MIPMAP_LINEAR          = 0x2702;  // eslint-disable-line
   var LINEAR_MIPMAP_LINEAR           = 0x2703;  // eslint-disable-line
+
+  const R8                           = 0x8229;
+  const R8_SNORM                     = 0x8F94;
+  const R16F                         = 0x822D;
+  const R32F                         = 0x822E;
+  const R8UI                         = 0x8232;
+  const R8I                          = 0x8231;
+  const RG16UI                       = 0x823A;
+  const RG16I                        = 0x8239;
+  const RG32UI                       = 0x823C;
+  const RG32I                        = 0x823B;
+  const RG8                          = 0x822B;
+  const RG8_SNORM                    = 0x8F95;
+  const RG16F                        = 0x822F;
+  const RG32F                        = 0x8230;
+  const RG8UI                        = 0x8238;
+  const RG8I                         = 0x8237;
+  const R16UI                        = 0x8234;
+  const R16I                         = 0x8233;
+  const R32UI                        = 0x8236;
+  const R32I                         = 0x8235;
+  const RGB8                         = 0x8051;
+  const SRGB8                        = 0x8C41;
+  const RGB565                       = 0x8D62;
+  const RGB8_SNORM                   = 0x8F96;
+  const R11F_G11F_B10F               = 0x8C3A;
+  const RGB9_E5                      = 0x8C3D;
+  const RGB16F                       = 0x881B;
+  const RGB32F                       = 0x8815;
+  const RGB8UI                       = 0x8D7D;
+  const RGB8I                        = 0x8D8F;
+  const RGB16UI                      = 0x8D77;
+  const RGB16I                       = 0x8D89;
+  const RGB32UI                      = 0x8D71;
+  const RGB32I                       = 0x8D83;
+  const RGBA8                        = 0x8058;
+  const SRGB8_ALPHA8                 = 0x8C43;
+  const RGBA8_SNORM                  = 0x8F97;
+  const RGB5_A1                      = 0x8057;
+  const RGBA4                        = 0x8056;
+  const RGB10_A2                     = 0x8059;
+  const RGBA16F                      = 0x881A;
+  const RGBA32F                      = 0x8814;
+  const RGBA8UI                      = 0x8D7C;
+  const RGBA8I                       = 0x8D8E;
+  const RGB10_A2UI                   = 0x906F;
+  const RGBA16UI                     = 0x8D76;
+  const RGBA16I                      = 0x8D88;
+  const RGBA32I                      = 0x8D82;
+  const RGBA32UI                     = 0x8D70;
+
+  const DEPTH_COMPONENT16            = 0x81A5;
+  const DEPTH_COMPONENT24            = 0x81A6;
+  const DEPTH_COMPONENT32F           = 0x8CAC;
+  const DEPTH32F_STENCIL8            = 0x8CAD;
+  const DEPTH24_STENCIL8             = 0x88F0;
+
+  /* DataType */
+  const BYTE                         = 0x1400;
+  const UNSIGNED_BYTE                = 0x1401;
+  const SHORT                        = 0x1402;
+  const UNSIGNED_SHORT               = 0x1403;
+  const INT                          = 0x1404;
+  const UNSIGNED_INT                 = 0x1405;
+  const FLOAT                        = 0x1406;
+  const UNSIGNED_SHORT_4_4_4_4       = 0x8033;
+  const UNSIGNED_SHORT_5_5_5_1       = 0x8034;
+  const UNSIGNED_SHORT_5_6_5         = 0x8363;
+  const HALF_FLOAT                   = 0x140B;
+  const HALF_FLOAT_OES               = 0x8D61;  // Thanks Khronos for making this different >:(
+  const UNSIGNED_INT_2_10_10_10_REV  = 0x8368;
+  const UNSIGNED_INT_10F_11F_11F_REV = 0x8C3B;
+  const UNSIGNED_INT_5_9_9_9_REV     = 0x8C3E;
+  const FLOAT_32_UNSIGNED_INT_24_8_REV = 0x8DAD;
+  const UNSIGNED_INT_24_8            = 0x84FA;
+
+  const RG                           = 0x8227;
+  const RG_INTEGER                   = 0x8228;
+  const RED                          = 0x1903;
+  const RED_INTEGER                  = 0x8D94;
+  const RGB_INTEGER                  = 0x8D98;
+  const RGBA_INTEGER                 = 0x8D99;
+
+  const formatInfo = {};
+  {
+    // NOTE: this is named `numColorComponents` vs `numComponents` so we can let Uglify mangle
+    // the name.
+    const f = formatInfo;
+    f[ALPHA]           = { numColorComponents: 1, };
+    f[LUMINANCE]       = { numColorComponents: 1, };
+    f[LUMINANCE_ALPHA] = { numColorComponents: 2, };
+    f[RGB]             = { numColorComponents: 3, };
+    f[RGBA]            = { numColorComponents: 4, };
+    f[RED]             = { numColorComponents: 1, };
+    f[RED_INTEGER]     = { numColorComponents: 1, };
+    f[RG]              = { numColorComponents: 2, };
+    f[RG_INTEGER]      = { numColorComponents: 2, };
+    f[RGB]             = { numColorComponents: 3, };
+    f[RGB_INTEGER]     = { numColorComponents: 3, };
+    f[RGBA]            = { numColorComponents: 4, };
+    f[RGBA_INTEGER]    = { numColorComponents: 4, };
+    f[DEPTH_COMPONENT] = { numColorComponents: 1, };
+    f[DEPTH_STENCIL]   = { numColorComponents: 2, };
+  }
+
+  const textureInternalFormatInfo = {};
+  {
+    // NOTE: these properties need unique names so we can let Uglify mangle the name.
+    const t = textureInternalFormatInfo;
+    // unsized formats
+    t[ALPHA]              = { textureFormat: ALPHA,           colorRenderable: true,  textureFilterable: true,  bytesPerElement: [1, 2, 2, 4],        type: [UNSIGNED_BYTE, HALF_FLOAT, HALF_FLOAT_OES, FLOAT], };
+    t[LUMINANCE]          = { textureFormat: LUMINANCE,       colorRenderable: true,  textureFilterable: true,  bytesPerElement: [1, 2, 2, 4],        type: [UNSIGNED_BYTE, HALF_FLOAT, HALF_FLOAT_OES, FLOAT], };
+    t[LUMINANCE_ALPHA]    = { textureFormat: LUMINANCE_ALPHA, colorRenderable: true,  textureFilterable: true,  bytesPerElement: [2, 4, 4, 8],        type: [UNSIGNED_BYTE, HALF_FLOAT, HALF_FLOAT_OES, FLOAT], };
+    t[RGB]                = { textureFormat: RGB,             colorRenderable: true,  textureFilterable: true,  bytesPerElement: [3, 6, 6, 12, 2],    type: [UNSIGNED_BYTE, HALF_FLOAT, HALF_FLOAT_OES, FLOAT, UNSIGNED_SHORT_5_6_5], };
+    t[RGBA]               = { textureFormat: RGBA,            colorRenderable: true,  textureFilterable: true,  bytesPerElement: [4, 8, 8, 16, 2, 2], type: [UNSIGNED_BYTE, HALF_FLOAT, HALF_FLOAT_OES, FLOAT, UNSIGNED_SHORT_4_4_4_4, UNSIGNED_SHORT_5_5_5_1], };
+
+    // sized formats
+    t[R8]                 = { textureFormat: RED,             colorRenderable: true,  textureFilterable: true,  bytesPerElement:  1,         type: UNSIGNED_BYTE, };
+    t[R8_SNORM]           = { textureFormat: RED,             colorRenderable: false, textureFilterable: true,  bytesPerElement:  1,         type: BYTE, };
+    t[R16F]               = { textureFormat: RED,             colorRenderable: false, textureFilterable: true,  bytesPerElement: [4, 2],     type: [FLOAT, HALF_FLOAT], };
+    t[R32F]               = { textureFormat: RED,             colorRenderable: false, textureFilterable: false, bytesPerElement:  4,         type: FLOAT, };
+    t[R8UI]               = { textureFormat: RED_INTEGER,     colorRenderable: true,  textureFilterable: false, bytesPerElement:  1,         type: UNSIGNED_BYTE, };
+    t[R8I]                = { textureFormat: RED_INTEGER,     colorRenderable: true,  textureFilterable: false, bytesPerElement:  1,         type: BYTE, };
+    t[R16UI]              = { textureFormat: RED_INTEGER,     colorRenderable: true,  textureFilterable: false, bytesPerElement:  2,         type: UNSIGNED_SHORT, };
+    t[R16I]               = { textureFormat: RED_INTEGER,     colorRenderable: true,  textureFilterable: false, bytesPerElement:  2,         type: SHORT, };
+    t[R32UI]              = { textureFormat: RED_INTEGER,     colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: UNSIGNED_INT, };
+    t[R32I]               = { textureFormat: RED_INTEGER,     colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: INT, };
+    t[RG8]                = { textureFormat: RG,              colorRenderable: true,  textureFilterable: true,  bytesPerElement:  2,         type: UNSIGNED_BYTE, };
+    t[RG8_SNORM]          = { textureFormat: RG,              colorRenderable: false, textureFilterable: true,  bytesPerElement:  2,         type: BYTE, };
+    t[RG16F]              = { textureFormat: RG,              colorRenderable: false, textureFilterable: true,  bytesPerElement: [8, 4],     type: [FLOAT, HALF_FLOAT], };
+    t[RG32F]              = { textureFormat: RG,              colorRenderable: false, textureFilterable: false, bytesPerElement:  8,         type: FLOAT, };
+    t[RG8UI]              = { textureFormat: RG_INTEGER,      colorRenderable: true,  textureFilterable: false, bytesPerElement:  2,         type: UNSIGNED_BYTE, };
+    t[RG8I]               = { textureFormat: RG_INTEGER,      colorRenderable: true,  textureFilterable: false, bytesPerElement:  2,         type: BYTE, };
+    t[RG16UI]             = { textureFormat: RG_INTEGER,      colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: UNSIGNED_SHORT, };
+    t[RG16I]              = { textureFormat: RG_INTEGER,      colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: SHORT, };
+    t[RG32UI]             = { textureFormat: RG_INTEGER,      colorRenderable: true,  textureFilterable: false, bytesPerElement:  8,         type: UNSIGNED_INT, };
+    t[RG32I]              = { textureFormat: RG_INTEGER,      colorRenderable: true,  textureFilterable: false, bytesPerElement:  8,         type: INT, };
+    t[RGB8]               = { textureFormat: RGB,             colorRenderable: true,  textureFilterable: true,  bytesPerElement:  3,         type: UNSIGNED_BYTE, };
+    t[SRGB8]              = { textureFormat: RGB,             colorRenderable: false, textureFilterable: true,  bytesPerElement:  3,         type: UNSIGNED_BYTE, };
+    t[RGB565]             = { textureFormat: RGB,             colorRenderable: true,  textureFilterable: true,  bytesPerElement: [3, 2],     type: [UNSIGNED_BYTE, UNSIGNED_SHORT_5_6_5], };
+    t[RGB8_SNORM]         = { textureFormat: RGB,             colorRenderable: false, textureFilterable: true,  bytesPerElement:  3,         type: BYTE, };
+    t[R11F_G11F_B10F]     = { textureFormat: RGB,             colorRenderable: false, textureFilterable: true,  bytesPerElement: [12, 6, 4], type: [FLOAT, HALF_FLOAT, UNSIGNED_INT_10F_11F_11F_REV], };
+    t[RGB9_E5]            = { textureFormat: RGB,             colorRenderable: false, textureFilterable: true,  bytesPerElement: [12, 6, 4], type: [FLOAT, HALF_FLOAT, UNSIGNED_INT_5_9_9_9_REV], };
+    t[RGB16F]             = { textureFormat: RGB,             colorRenderable: false, textureFilterable: true,  bytesPerElement: [12, 6],    type: [FLOAT, HALF_FLOAT], };
+    t[RGB32F]             = { textureFormat: RGB,             colorRenderable: false, textureFilterable: false, bytesPerElement: 12,         type: FLOAT, };
+    t[RGB8UI]             = { textureFormat: RGB_INTEGER,     colorRenderable: false, textureFilterable: false, bytesPerElement:  3,         type: UNSIGNED_BYTE, };
+    t[RGB8I]              = { textureFormat: RGB_INTEGER,     colorRenderable: false, textureFilterable: false, bytesPerElement:  3,         type: BYTE, };
+    t[RGB16UI]            = { textureFormat: RGB_INTEGER,     colorRenderable: false, textureFilterable: false, bytesPerElement:  6,         type: UNSIGNED_SHORT, };
+    t[RGB16I]             = { textureFormat: RGB_INTEGER,     colorRenderable: false, textureFilterable: false, bytesPerElement:  6,         type: SHORT, };
+    t[RGB32UI]            = { textureFormat: RGB_INTEGER,     colorRenderable: false, textureFilterable: false, bytesPerElement: 12,         type: UNSIGNED_INT, };
+    t[RGB32I]             = { textureFormat: RGB_INTEGER,     colorRenderable: false, textureFilterable: false, bytesPerElement: 12,         type: INT, };
+    t[RGBA8]              = { textureFormat: RGBA,            colorRenderable: true,  textureFilterable: true,  bytesPerElement:  4,         type: UNSIGNED_BYTE, };
+    t[SRGB8_ALPHA8]       = { textureFormat: RGBA,            colorRenderable: true,  textureFilterable: true,  bytesPerElement:  4,         type: UNSIGNED_BYTE, };
+    t[RGBA8_SNORM]        = { textureFormat: RGBA,            colorRenderable: false, textureFilterable: true,  bytesPerElement:  4,         type: BYTE, };
+    t[RGB5_A1]            = { textureFormat: RGBA,            colorRenderable: true,  textureFilterable: true,  bytesPerElement: [4, 2, 4],  type: [UNSIGNED_BYTE, UNSIGNED_SHORT_5_5_5_1, UNSIGNED_INT_2_10_10_10_REV], };
+    t[RGBA4]              = { textureFormat: RGBA,            colorRenderable: true,  textureFilterable: true,  bytesPerElement: [4, 2],     type: [UNSIGNED_BYTE, UNSIGNED_SHORT_4_4_4_4], };
+    t[RGB10_A2]           = { textureFormat: RGBA,            colorRenderable: true,  textureFilterable: true,  bytesPerElement:  4,         type: UNSIGNED_INT_2_10_10_10_REV, };
+    t[RGBA16F]            = { textureFormat: RGBA,            colorRenderable: false, textureFilterable: true,  bytesPerElement: [16, 8],    type: [FLOAT, HALF_FLOAT], };
+    t[RGBA32F]            = { textureFormat: RGBA,            colorRenderable: false, textureFilterable: false, bytesPerElement: 16,         type: FLOAT, };
+    t[RGBA8UI]            = { textureFormat: RGBA_INTEGER,    colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: UNSIGNED_BYTE, };
+    t[RGBA8I]             = { textureFormat: RGBA_INTEGER,    colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: BYTE, };
+    t[RGB10_A2UI]         = { textureFormat: RGBA_INTEGER,    colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: UNSIGNED_INT_2_10_10_10_REV, };
+    t[RGBA16UI]           = { textureFormat: RGBA_INTEGER,    colorRenderable: true,  textureFilterable: false, bytesPerElement:  8,         type: UNSIGNED_SHORT, };
+    t[RGBA16I]            = { textureFormat: RGBA_INTEGER,    colorRenderable: true,  textureFilterable: false, bytesPerElement:  8,         type: SHORT, };
+    t[RGBA32I]            = { textureFormat: RGBA_INTEGER,    colorRenderable: true,  textureFilterable: false, bytesPerElement: 16,         type: INT, };
+    t[RGBA32UI]           = { textureFormat: RGBA_INTEGER,    colorRenderable: true,  textureFilterable: false, bytesPerElement: 16,         type: UNSIGNED_INT, };
+    // Sized Internal
+    t[DEPTH_COMPONENT16]  = { textureFormat: DEPTH_COMPONENT, colorRenderable: true,  textureFilterable: false, bytesPerElement: [2, 4],     type: [UNSIGNED_SHORT, UNSIGNED_INT], };
+    t[DEPTH_COMPONENT24]  = { textureFormat: DEPTH_COMPONENT, colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: UNSIGNED_INT, };
+    t[DEPTH_COMPONENT32F] = { textureFormat: DEPTH_COMPONENT, colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: FLOAT, };
+    t[DEPTH24_STENCIL8]   = { textureFormat: DEPTH_STENCIL,   colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: UNSIGNED_INT_24_8, };
+    t[DEPTH32F_STENCIL8]  = { textureFormat: DEPTH_STENCIL,   colorRenderable: true,  textureFilterable: false, bytesPerElement:  4,         type: FLOAT_32_UNSIGNED_INT_24_8_REV, };
+
+    Object.keys(t).forEach(function(internalFormat) {
+      const info = t[internalFormat];
+      info.bytesPerElementMap = {};
+      if (Array.isArray(info.bytesPerElement)) {
+        info.bytesPerElement.forEach(function(bytesPerElement, ndx) {
+          const type = info.type[ndx];
+          info.bytesPerElementMap[type] = bytesPerElement;
+        });
+      } else {
+        const type = info.type;
+        info.bytesPerElementMap[type] = info.bytesPerElement;
+      }
+    });
+  }
+
+  /**
+   * Gets the number of bytes per element for a given internalFormat / type
+   * @param {number} internalFormat The internalFormat parameter from texImage2D etc..
+   * @param {number} type The type parameter for texImage2D etc..
+   * @return {number} the number of bytes per element for the given internalFormat, type combo
+   * @memberOf module:twgl/textures
+   */
+  function getBytesPerElementForInternalFormat(internalFormat, type) {
+    const info = textureInternalFormatInfo[internalFormat];
+    if (!info) {
+      throw "unknown internal format";
+    }
+    const bytesPerElement = info.bytesPerElementMap[type];
+    if (bytesPerElement === undefined) {
+      throw "unknown internal format";
+    }
+    return bytesPerElement;
+  }
+
+  /**
+   * Gets the format for a given internalFormat
+   *
+   * @param {number} internalFormat The internal format
+   * @return {{format:number, type:number}} the corresponding format and type
+   */
+  function getFormatAndTypeForInternalFormat(internalFormat) {
+    const info = textureInternalFormatInfo[internalFormat];
+    if (!info) {
+      throw "unknown internal format";
+    }
+    return {
+      format: info.textureFormat,
+      type: Array.isArray(info.type) ? info.type[0] : info.type,
+    };
+  }
+
+  /**
+   * Returns true if value is power of 2
+   * @param {number} value number to check.
+   * @return true if value is power of 2
+   */
+  function isPowerOf2(value) {
+    return (value & (value - 1)) === 0;
+  }
+
+  /**
+   * Gets whether or not we can generate mips for the given format
+   * @param {number} internalFormat The internalFormat parameter from texImage2D etc..
+   * @param {number} type The type parameter for texImage2D etc..
+   * @return {boolean} true if we can generate mips
+   */
+  function canGenerateMipmap(gl, width, height, internalFormat /*, type */) {
+    if (!utils.isWebGL2(gl)) {
+      return isPowerOf2(width) && isPowerOf2(height);
+    }
+    const info = textureInternalFormatInfo[internalFormat];
+    if (!info) {
+      throw "unknown internal format";
+    }
+    return info.colorRenderable && info.textureFilterable;
+  }
+
+  /**
+   * Gets whether or not we can generate mips for the given format
+   * @param {number} internalFormat The internalFormat parameter from texImage2D etc..
+   * @param {number} type The type parameter for texImage2D etc..
+   * @return {boolean} true if we can generate mips
+   */
+  function canFilter(internalFormat /*, type */) {
+    const info = textureInternalFormatInfo[internalFormat];
+    if (!info) {
+      throw "unknown internal format";
+    }
+    return info.textureFilterable;
+  }
+
+  /**
+   * Gets the number of compontents for a given image format.
+   * @param {number} format the format.
+   * @return {number} the number of components for the format.
+   * @memberOf module:twgl/textures
+   */
+  function getNumComponentsForFormat(format) {
+    const info = formatInfo[format];
+    if (!info) {
+      throw "unknown format: " + format;
+    }
+    return info.numColorComponents;
+  }
+
+  /**
+   * Gets the texture type for a given array type.
+   * @param {WebGLRenderingContext} gl the WebGLRenderingContext
+   * @return {number} the gl texture type
+   */
+  function getTextureTypeForArrayType(gl, src, defaultType) {
+    if (isArrayBuffer(src)) {
+      return typedArrays.getGLTypeForTypedArray(src);
+    }
+    return defaultType || gl.UNSIGNED_BYTE;
+  }
+
+  function guessDimensions(gl, target, width, height, numElements) {
+    if (numElements % 1 !== 0) {
+      throw "can't guess dimensions";
+    }
+    if (!width && !height) {
+      var size = Math.sqrt(numElements / (target === gl.TEXTURE_CUBE_MAP ? 6 : 1));
+      if (size % 1 === 0) {
+        width = size;
+        height = size;
+      } else {
+        width = numElements;
+        height = 1;
+      }
+    } else if (!height) {
+      height = numElements / width;
+      if (height % 1) {
+        throw "can't guess dimensions";
+      }
+    } else if (!width) {
+      width = numElements / height;
+      if (width % 1) {
+        throw "can't guess dimensions";
+      }
+    }
+    return {
+      width: width,
+      height: height,
+    };
+  }
 
   /**
    * Sets the default texture color.
@@ -121,16 +445,16 @@ define([
     function init(gl) {
       if (!enums) {
         enums = {};
-        Object.keys(gl).forEach(function(key) {
+        for (var key in gl) {
           if (typeof gl[key] === 'number') {
             enums[gl[key]] = key;
           }
-        });
+        }
       }
     }
 
     return function glEnumToString(gl, value) {
-      init();
+      init(gl);
       return enums[value] || ("0x" + value.toString(16));
     };
   }());
@@ -156,11 +480,12 @@ define([
    * @property {number} [min] the min filter setting (eg. `gl.LINEAR`). Defaults to `gl.NEAREST_MIPMAP_LINEAR`
    *     or if texture is not a power of 2 on both dimensions then defaults to `gl.LINEAR`.
    * @property {number} [mag] the mag filter setting (eg. `gl.LINEAR`). Defaults to `gl.LINEAR`
+   * @property {number} [minMag] both the min and mag filter settings.
    * @property {number} [internalFormat] internal format for texture. Defaults to `gl.RGBA`
    * @property {number} [format] format for texture. Defaults to `gl.RGBA`.
    * @property {number} [type] type for texture. Defaults to `gl.UNSIGNED_BYTE` unless `src` is ArrayBuffer. If `src`
    *     is ArrayBuffer defaults to type that matches ArrayBuffer type.
-   * @property {number} [wrap] Texture wrapping for both S and T (and R if TEXTURE_3D). Defaults to `gl.REPEAT` for 2D unless src is WebGL1 and src not npot and `gl.CLAMP_TO_EDGE` for cube
+   * @property {number} [wrap] Texture wrapping for both S and T (and R if TEXTURE_3D or WebGLSampler). Defaults to `gl.REPEAT` for 2D unless src is WebGL1 and src not npot and `gl.CLAMP_TO_EDGE` for cube
    * @property {number} [wrapS] Texture wrapping for S. Defaults to `gl.REPEAT` and `gl.CLAMP_TO_EDGE` for cube. If set takes precedence over `wrap`.
    * @property {number} [wrapT] Texture wrapping for T. Defaults to `gl.REPEAT` and `gl.CLAMP_TO_EDGE` for cube. If set takes precedence over `wrap`.
    * @property {number} [wrapR] Texture wrapping for R. Defaults to `gl.REPEAT` and `gl.CLAMP_TO_EDGE` for cube. If set takes precedence over `wrap`.
@@ -272,6 +597,58 @@ define([
     }
   }
 
+  var WebGLSamplerCtor = window.WebGLSampler || function NotWebGLSampler() {};
+
+  /**
+   * Sets the parameters of a texture or sampler
+   * @param {WebGLRenderingContext} gl the WebGLRenderingContext
+   * @param {number|WebGLSampler} target texture target or sampler
+   * @param {function()} parameteriFn texParamteri or samplerParameteri fn
+   * @param {WebGLTexture} tex the WebGLTexture to set parameters for
+   * @param {module:twgl.TextureOptions} options A TextureOptions object with whatever parameters you want set.
+   *   This is often the same options you passed in when you created the texture.
+   */
+  function setTextureSamplerParameters(gl, target, parameteriFn, options) {
+    if (options.minMag) {
+      parameteriFn.call(gl, target, gl.TEXTURE_MIN_FILTER, options.minMag);
+      parameteriFn.call(gl, target, gl.TEXTURE_MAG_FILTER, options.minMag);
+    }
+    if (options.min) {
+      parameteriFn.call(gl, target, gl.TEXTURE_MIN_FILTER, options.min);
+    }
+    if (options.mag) {
+      parameteriFn.call(gl, target, gl.TEXTURE_MAG_FILTER, options.mag);
+    }
+    if (options.wrap) {
+      parameteriFn.call(gl, target, gl.TEXTURE_WRAP_S, options.wrap);
+      parameteriFn.call(gl, target, gl.TEXTURE_WRAP_T, options.wrap);
+      if (target === gl.TEXTURE_3D || target instanceof WebGLSamplerCtor) {
+        parameteriFn.call(gl, target, gl.TEXTURE_WRAP_R, options.wrap);
+      }
+    }
+    if (options.wrapR) {
+      parameteriFn.call(gl, target, gl.TEXTURE_WRAP_R, options.wrapR);
+    }
+    if (options.wrapS) {
+      parameteriFn.call(gl, target, gl.TEXTURE_WRAP_S, options.wrapS);
+    }
+    if (options.wrapT) {
+      parameteriFn.call(gl, target, gl.TEXTURE_WRAP_T, options.wrapT);
+    }
+    if (options.minLod) {
+      parameteriFn.call(gl, target, gl.TEXTURE_MIN_LOD, options.minLod);
+    }
+    if (options.maxLod) {
+      parameteriFn.call(gl, target, gl.TEXTURE_MAX_LOD, options.maxLod);
+    }
+    if (options.baseLevel) {
+      parameteriFn.call(gl, target, gl.TEXTURE_BASE_LEVEL, options.baseLevel);
+    }
+    if (options.maxLevel) {
+      parameteriFn.call(gl, target, gl.TEXTURE_MAX_LEVEL, options.maxLevel);
+    }
+  }
+
   /**
    * Sets the texture parameters of a texture.
    * @param {WebGLRenderingContext} gl the WebGLRenderingContext
@@ -283,40 +660,79 @@ define([
   function setTextureParameters(gl, tex, options) {
     var target = options.target || gl.TEXTURE_2D;
     gl.bindTexture(target, tex);
-    if (options.min) {
-      gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, options.min);
-    }
-    if (options.mag) {
-      gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, options.mag);
-    }
-    if (options.wrap) {
-      gl.texParameteri(target, gl.TEXTURE_WRAP_S, options.wrap);
-      gl.texParameteri(target, gl.TEXTURE_WRAP_T, options.wrap);
-      if (target === gl.TEXTURE_3D) {
-        gl.texParameteri(target, gl.TEXTURE_WRAP_R, options.wrap);
-      }
-    }
-    if (options.wrapR) {
-      gl.texParameteri(target, gl.TEXTURE_WRAP_R, options.wrapR);
-    }
-    if (options.wrapS) {
-      gl.texParameteri(target, gl.TEXTURE_WRAP_S, options.wrapS);
-    }
-    if (options.wrapT) {
-      gl.texParameteri(target, gl.TEXTURE_WRAP_T, options.wrapT);
-    }
-    if (options.minLod) {
-      gl.texParameteri(target, gl.TEXTURE_MIN_LOD, options.minLod);
-    }
-    if (options.maxLod) {
-      gl.texParameteri(target, gl.TEXTURE_MAX_LOD, options.maxLod);
-    }
-    if (options.baseLevel) {
-      gl.texParameteri(target, gl.TEXTURE_BASE_LEVEL, options.baseLevel);
-    }
-    if (options.maxLevel) {
-      gl.texParameteri(target, gl.TEXTURE_MAX_LEVEL, options.maxLevel);
-    }
+    setTextureSamplerParameters(gl, target, gl.texParameteri, options);
+  }
+
+  /**
+   * Sets the sampler parameters of a sampler.
+   * @param {WebGLRenderingContext} gl the WebGLRenderingContext
+   * @param {WebGLSampler} sampler the WebGLSampler to set parameters for
+   * @param {module:twgl.TextureOptions} options A TextureOptions object with whatever parameters you want set.
+   * @memberOf module:twgl/textures
+   */
+  function setSamplerParameters(gl, sampler, options) {
+    setTextureSamplerParameters(gl, sampler, gl.samplerParameteri, options);
+  }
+
+  /**
+   * Creates a new sampler object and sets parameters.
+   *
+   * Example:
+   *
+   *      const sampler = twgl.createSampler(gl, {
+   *        minMag: gl.NEAREST,         // sets both TEXTURE_MIN_FILTER and TEXTURE_MAG_FILTER
+   *        wrap: gl.CLAMP_TO_NEAREST,  // sets both TEXTURE_WRAP_S and TEXTURE_WRAP_T and TEXTURE_WRAP_R
+   *      });
+   *
+   * @param {WebGLRenderingContext} gl the WebGLRenderingContext
+   * @param {Object.<string,module:twgl.TextureOptions>} options A object of TextureOptions one per sampler.
+   * @return {Object.<string,WebGLSampler>} the created samplers by name
+   */
+  function createSampler(gl, options) {
+    const sampler = gl.createSampler();
+    setSamplerParameters(gl, sampler, options);
+    return sampler;
+  }
+
+  /**
+   * Creates a multiple sampler objects and sets parameters on each.
+   *
+   * Example:
+   *
+   *      const samplers = twgl.createSamplers(gl, {
+   *        nearest: {
+   *          minMag: gl.NEAREST,
+   *        },
+   *        nearestClampS: {
+   *          minMag: gl.NEAREST,
+   *          wrapS: gl.CLAMP_TO_NEAREST,
+   *        },
+   *        linear: {
+   *          minMag: gl.LINEAR,
+   *        },
+   *        nearestClamp: {
+   *          minMag: gl.NEAREST,
+   *          wrap: gl.CLAMP_TO_EDGE,
+   *        },
+   *        linearClamp: {
+   *          minMag: gl.LINEAR,
+   *          wrap: gl.CLAMP_TO_EDGE,
+   *        },
+   *        linearClampT: {
+   *          minMag: gl.LINEAR,
+   *          wrapT: gl.CLAMP_TO_EDGE,
+   *        },
+   *      });
+   *
+   * @param {WebGLRenderingContext} gl the WebGLRenderingContext
+   * @param {module:twgl.TextureOptions} [options] A TextureOptions object with whatever parameters you want set on the sampler
+   */
+  function createSamplers(gl, samplerOptions) {
+    const samplers = {};
+    Object.keys(samplerOptions).forEach(function(name) {
+      samplers[name] = createSampler(gl, samplerOptions[name]);
+    });
+    return samplers;
   }
 
   /**
@@ -334,15 +750,6 @@ define([
   }
 
   /**
-   * Returns true if value is power of 2
-   * @param {number} value number to check.
-   * @return true if value is power of 2
-   */
-  function isPowerOf2(value) {
-    return (value & (value - 1)) === 0;
-  }
-
-  /**
    * Sets filtering or generates mips for texture based on width or height
    * If width or height is not passed in uses `options.width` and//or `options.height`
    *
@@ -352,20 +759,26 @@ define([
    *   This is often the same options you passed in when you created the texture.
    * @param {number} [width] width of texture
    * @param {number} [height] height of texture
+   * @param {number} [internalFormat] The internalFormat parameter from texImage2D etc..
+   * @param {number} [type] The type parameter for texImage2D etc..
    * @memberOf module:twgl/textures
    */
-  function setTextureFilteringForSize(gl, tex, options, width, height) {
+  function setTextureFilteringForSize(gl, tex, options, width, height, internalFormat, type) {
     options = options || defaults.textureOptions;
+    internalFormat = internalFormat || gl.RGBA;
+    type = type || gl.UNSIGNED_BYTE;
     var target = options.target || gl.TEXTURE_2D;
     width = width || options.width;
     height = height || options.height;
     gl.bindTexture(target, tex);
-    if (!isPowerOf2(width) || !isPowerOf2(height)) {
-      gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    if (canGenerateMipmap(gl, width, height, internalFormat, type)) {
+      gl.generateMipmap(target);
+    } else {
+      const filtering = canFilter(internalFormat, type) ? gl.LINEAR : gl.NEAREST;
+      gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, filtering);
+      gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, filtering);
       gl.texParameteri(target, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(target, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    } else {
-      gl.generateMipmap(target);
     }
   }
 
@@ -432,97 +845,95 @@ define([
    * @memberOf module:twgl/textures
    * @kind function
    */
-  var setTextureFromElement = function() {
-    var ctx = document.createElement("canvas").getContext("2d");
-    return function setTextureFromElement(gl, tex, element, options) {
-      options = options || defaults.textureOptions;
-      var target = options.target || gl.TEXTURE_2D;
-      var width = element.width;
-      var height = element.height;
-      var format = options.format || gl.RGBA;
-      var internalFormat = options.internalFormat || format;
-      var type = options.type || gl.UNSIGNED_BYTE;
-      savePackState(gl, options);
-      gl.bindTexture(target, tex);
-      if (target === gl.TEXTURE_CUBE_MAP) {
-        // guess the parts
-        var imgWidth  = element.width;
-        var imgHeight = element.height;
-        var size;
-        var slices;
-        if (imgWidth / 6 === imgHeight) {
-          // It's 6x1
-          size = imgHeight;
-          slices = [0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0];
-        } else if (imgHeight / 6 === imgWidth) {
-          // It's 1x6
-          size = imgWidth;
-          slices = [0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5];
-        } else if (imgWidth / 3 === imgHeight / 2) {
-          // It's 3x2
-          size = imgWidth / 3;
-          slices = [0, 0, 1, 0, 2, 0, 0, 1, 1, 1, 2, 1];
-        } else if (imgWidth / 2 === imgHeight / 3) {
-          // It's 2x3
-          size = imgWidth / 2;
-          slices = [0, 0, 1, 0, 0, 1, 1, 1, 0, 2, 1, 2];
-        } else {
-          throw "can't figure out cube map from element: " + (element.src ? element.src : element.nodeName);
-        }
-        ctx.canvas.width = size;
-        ctx.canvas.height = size;
-        width = size;
-        height = size;
-        getCubeFacesWithNdx(gl, options).forEach(function(f) {
-          var xOffset = slices[f.ndx * 2 + 0] * size;
-          var yOffset = slices[f.ndx * 2 + 1] * size;
-          ctx.drawImage(element, xOffset, yOffset, size, size, 0, 0, size, size);
-          gl.texImage2D(f.face, 0, internalFormat, format, type, ctx.canvas);
-        });
-        // Free up the canvas memory
-        ctx.canvas.width = 1;
-        ctx.canvas.height = 1;
-      } else if (target === gl.TEXTURE_3D) {
-        var smallest = Math.min(element.width, element.height);
-        var largest = Math.max(element.width, element.height);
-        var depth = largest / smallest;
-        if (depth % 1 !== 0) {
-          throw "can not compute 3D dimensions of element";
-        }
-        var xMult = element.width  === largest ? 1 : 0;
-        var yMult = element.height === largest ? 1 : 0;
-        gl.texImage3D(target, 0, internalFormat, smallest, smallest, smallest, 0, format, type, null);
-        // remove this is texSubImage3D gets width and height arguments
-        ctx.canvas.width = smallest;
-        ctx.canvas.height = smallest;
-        for (var d = 0; d < depth; ++d) {
-//          gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, d * smallest);
-//          gl.texSubImage3D(target, 0, 0, 0, d, format, type, element);
-            var srcX = d * smallest * xMult;
-            var srcY = d * smallest * yMult;
-            var srcW = smallest;
-            var srcH = smallest;
-            var dstX = 0;
-            var dstY = 0;
-            var dstW = smallest;
-            var dstH = smallest;
-            ctx.drawImage(element, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
-            gl.texSubImage3D(target, 0, 0, 0, d, format, type, ctx.canvas);
-        }
-        ctx.canvas.width = 0;
-        ctx.canvas.height = 0;
-// FIX (save state)
-//        gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
+  function setTextureFromElement(gl, tex, element, options) {
+    options = options || defaults.textureOptions;
+    var target = options.target || gl.TEXTURE_2D;
+    var width = element.width;
+    var height = element.height;
+    var internalFormat = options.internalFormat || options.format || gl.RGBA;
+    var formatType = getFormatAndTypeForInternalFormat(internalFormat);
+    var format = options.format || formatType.format;
+    var type = options.type || formatType.type;
+    savePackState(gl, options);
+    gl.bindTexture(target, tex);
+    if (target === gl.TEXTURE_CUBE_MAP) {
+      // guess the parts
+      var imgWidth  = element.width;
+      var imgHeight = element.height;
+      var size;
+      var slices;
+      if (imgWidth / 6 === imgHeight) {
+        // It's 6x1
+        size = imgHeight;
+        slices = [0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0];
+      } else if (imgHeight / 6 === imgWidth) {
+        // It's 1x6
+        size = imgWidth;
+        slices = [0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5];
+      } else if (imgWidth / 3 === imgHeight / 2) {
+        // It's 3x2
+        size = imgWidth / 3;
+        slices = [0, 0, 1, 0, 2, 0, 0, 1, 1, 1, 2, 1];
+      } else if (imgWidth / 2 === imgHeight / 3) {
+        // It's 2x3
+        size = imgWidth / 2;
+        slices = [0, 0, 1, 0, 0, 1, 1, 1, 0, 2, 1, 2];
       } else {
-        gl.texImage2D(target, 0, internalFormat, format, type, element);
+        throw "can't figure out cube map from element: " + (element.src ? element.src : element.nodeName);
       }
-      restorePackState(gl, options);
-      if (options.auto !== false) {
-        setTextureFilteringForSize(gl, tex, options, width, height);
+      ctx.canvas.width = size;
+      ctx.canvas.height = size;
+      width = size;
+      height = size;
+      getCubeFacesWithNdx(gl, options).forEach(function(f) {
+        var xOffset = slices[f.ndx * 2 + 0] * size;
+        var yOffset = slices[f.ndx * 2 + 1] * size;
+        ctx.drawImage(element, xOffset, yOffset, size, size, 0, 0, size, size);
+        gl.texImage2D(f.face, 0, internalFormat, format, type, ctx.canvas);
+      });
+      // Free up the canvas memory
+      ctx.canvas.width = 1;
+      ctx.canvas.height = 1;
+    } else if (target === gl.TEXTURE_3D) {
+      var smallest = Math.min(element.width, element.height);
+      var largest = Math.max(element.width, element.height);
+      var depth = largest / smallest;
+      if (depth % 1 !== 0) {
+        throw "can not compute 3D dimensions of element";
       }
-      setTextureParameters(gl, tex, options);
-    };
-  }();
+      var xMult = element.width  === largest ? 1 : 0;
+      var yMult = element.height === largest ? 1 : 0;
+      gl.texImage3D(target, 0, internalFormat, smallest, smallest, smallest, 0, format, type, null);
+      // remove this is texSubImage3D gets width and height arguments
+      ctx.canvas.width = smallest;
+      ctx.canvas.height = smallest;
+      for (var d = 0; d < depth; ++d) {
+//        gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, d * smallest);
+//        gl.texSubImage3D(target, 0, 0, 0, d, format, type, element);
+          var srcX = d * smallest * xMult;
+          var srcY = d * smallest * yMult;
+          var srcW = smallest;
+          var srcH = smallest;
+          var dstX = 0;
+          var dstY = 0;
+          var dstW = smallest;
+          var dstH = smallest;
+          ctx.drawImage(element, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
+          gl.texSubImage3D(target, 0, 0, 0, d, smallest, smallest, 1, format, type, ctx.canvas);
+      }
+      ctx.canvas.width = 0;
+      ctx.canvas.height = 0;
+// FIX (save state)
+//      gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
+    } else {
+      gl.texImage2D(target, 0, internalFormat, format, type, element);
+    }
+    restorePackState(gl, options);
+    if (options.auto !== false) {
+      setTextureFilteringForSize(gl, tex, options, width, height, internalFormat, type);
+    }
+    setTextureParameters(gl, tex, options);
+  }
 
   function noop() {
   }
@@ -589,7 +1000,7 @@ define([
       for (var ii = 0; ii < 6; ++ii) {
         gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + ii, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, color);
       }
-    } else if (target === gl.TEXTURE_3D) {
+    } else if (target === gl.TEXTURE_3D || target === gl.TEXTURE_2D_ARRAY) {
       gl.texImage3D(target, 0, gl.RGBA, 1, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, color);
     } else {
       gl.texImage2D(target, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, color);
@@ -632,6 +1043,15 @@ define([
    * @param {*} err If truthy there was an error.
    * @param {WebGLTexture} tex the texture.
    * @param {HTMLImageElement[]} imgs the images for each face.
+   * @memberOf module:twgl
+   */
+
+  /**
+   * A callback for when an image finished downloading and been uploaded into a texture
+   * @callback ThreeDReadyCallback
+   * @param {*} err If truthy there was an error.
+   * @param {WebGLTexture} tex the texture.
+   * @param {HTMLImageElement[]} imgs the images for each slice.
    * @memberOf module:twgl
    */
 
@@ -681,7 +1101,9 @@ define([
     if (urls.length !== 6) {
       throw "there must be 6 urls for a cubemap";
     }
-    var format = options.format || gl.RGBA;
+    var internalFormat = options.internalFormat || options.format || gl.RGBA;
+    var formatType = getFormatAndTypeForInternalFormat(internalFormat);
+    var format = options.format || formatType.format;
     var type = options.type || gl.UNSIGNED_BYTE;
     var target = options.target || gl.TEXTURE_2D;
     if (target !== gl.TEXTURE_CUBE_MAP) {
@@ -713,10 +1135,10 @@ define([
               // use the default order
               getCubeFaceOrder(gl).forEach(function(otherTarget) {
                 // Should we re-use the same face or a color?
-                gl.texImage2D(otherTarget, 0, format, format, type, img);
+                gl.texImage2D(otherTarget, 0, internalFormat, format, type, img);
               });
             } else {
-              gl.texImage2D(faceTarget, 0, format, format, type, img);
+              gl.texImage2D(faceTarget, 0, internalFormat, format, type, img);
             }
 
             restorePackState(gl, options);
@@ -736,67 +1158,97 @@ define([
   }
 
   /**
-   * Gets the number of compontents for a given image format.
-   * @param {number} format the format.
-   * @return {number} the number of components for the format.
+   * Loads a 2d array or 3d texture from urls as specified in `options.src`.
+   * Will set the texture to a 1x1 pixel color
+   * so that it is usable immediately unless `option.color === false`.
+   *
+   * If the width and height is not specified the width and height of the first
+   * image loaded will be used. Note that since images are loaded async
+   * which image downloads first is unknown.
+   *
+   * If an image is not the same size as the width and height it will be scaled
+   * to that width and height.
+   *
+   * @param {WebGLRenderingContext} gl the WebGLRenderingContext
+   * @param {WebGLTexture} tex the WebGLTexture to set parameters for
+   * @param {module:twgl.TextureOptions} options A TextureOptions object with whatever parameters you want set.
+   * @param {module:twgl.ThreeDReadyCallback} [callback] A function to be called when all the images have finished loading. err will
+   *    be non null if there was an error.
    * @memberOf module:twgl/textures
    */
-  function getNumComponentsForFormat(format) {
-    switch (format) {
-      case ALPHA:
-      case LUMINANCE:
-        return 1;
-      case LUMINANCE_ALPHA:
-        return 2;
-      case RGB:
-        return 3;
-      case RGBA:
-        return 4;
-      default:
-        throw "unknown type: " + format;
+  function loadSlicesFromUrls(gl, tex, options, callback) {
+    callback = callback || noop;
+    var urls = options.src;
+    var internalFormat = options.internalFormat || options.format || gl.RGBA;
+    var formatType = getFormatAndTypeForInternalFormat(internalFormat);
+    var format = options.format || formatType.format;
+    var type = options.type || gl.UNSIGNED_BYTE;
+    var target = options.target || gl.TEXTURE_2D_ARRAY;
+    if (target !== gl.TEXTURE_3D && target !== gl.TEXTURE_2D_ARRAY) {
+      throw "target must be TEXTURE_3D or TEXTURE_2D_ARRAY";
     }
-  }
+    setTextureTo1PixelColor(gl, tex, options);
+    // Because it's async we need to copy the options.
+    options = utils.shallowCopy(options);
+    var numToLoad = urls.length;
+    var errors = [];
+    var imgs;
+    var width = options.width;
+    var height = options.height;
+    var depth = urls.length;
+    var firstImage = true;
 
-  /**
-   * Gets the texture type for a given array type.
-   * @param {WebGLRenderingContext} gl the WebGLRenderingContext
-   * @return {number} the gl texture type
-   */
-  function getTextureTypeForArrayType(gl, src) {
-    if (isArrayBuffer(src)) {
-      return typedArrays.getGLTypeForTypedArray(src);
-    }
-    return gl.UNSIGNED_BYTE;
-  }
+    function uploadImg(slice) {
+      return function(err, img) {
+        --numToLoad;
+        if (err) {
+          errors.push(err);
+        } else {
+          savePackState(gl, options);
+          gl.bindTexture(target, tex);
 
-  function guessDimensions(gl, target, width, height, numElements) {
-    if (numElements % 1 !== 0) {
-      throw "can't guess dimensions";
+          if (firstImage) {
+            firstImage = false;
+            width = options.width || img.width;
+            height = options.height || img.height;
+            gl.texImage3D(target, 0, internalFormat, width, height, depth, 0, format, type, null);
+
+            // put it in every slice otherwise some slices will be 0,0,0,0
+            for (var s = 0; s < depth; ++s) {
+              gl.texSubImage3D(target, 0, 0, 0, s, width, height, 1, format, type, img);
+            }
+          } else {
+            var src = img;
+            if (img.width !== width || img.height !== height) {
+              // Size the image to fix
+              src = ctx.canvas;
+              ctx.canvas.width = width;
+              ctx.canvas.height = height;
+              ctx.drawImage(img, 0, 0, width, height);
+            }
+
+            gl.texSubImage3D(target, 0, 0, 0, slice, width, height, 1, format, type, src);
+
+            // free the canvas memory
+            if (src === ctx.canvas) {
+              ctx.canvas.width = 0;
+              ctx.canvas.height = 0;
+            }
+          }
+
+          restorePackState(gl, options);
+          gl.generateMipmap(target);
+        }
+
+        if (numToLoad === 0) {
+          callback(errors.length ? errors : undefined, imgs, tex);
+        }
+      };
     }
-    if (!width && !height) {
-      var size = Math.sqrt(numElements / (target === gl.TEXTURE_CUBE_MAP ? 6 : 1));
-      if (size % 1 === 0) {
-        width = size;
-        height = size;
-      } else {
-        width = numElements;
-        height = 1;
-      }
-    } else if (!height) {
-      height = numElements / width;
-      if (height % 1) {
-        throw "can't guess dimensions";
-      }
-    } else if (!width) {
-      width = numElements / height;
-      if (width % 1) {
-        throw "can't guess dimensions";
-      }
-    }
-    return {
-      width: width,
-      height: height,
-    };
+
+    imgs = urls.map(function(url, ndx) {
+      return loadImage(url, options.crossOrigin, uploadImg(ndx));
+    });
   }
 
   /**
@@ -816,11 +1268,20 @@ define([
     var width = options.width;
     var height = options.height;
     var depth = options.depth;
-    var format = options.format || gl.RGBA;
-    var internalFormat = options.internalFormat || format;
-    var type = options.type || getTextureTypeForArrayType(gl, src);
-    var numComponents = getNumComponentsForFormat(format);
-    var numElements = src.length / numComponents;
+    var internalFormat = options.internalFormat || options.format || gl.RGBA;
+    var formatType = getFormatAndTypeForInternalFormat(internalFormat);
+    var format = options.format || formatType.format;
+    var type = options.type || getTextureTypeForArrayType(gl, src, formatType.type);
+    if (!isArrayBuffer(src)) {
+      var Type = typedArrays.getTypedArrayTypeForGLType(type);
+      src = new Type(src);
+    } else {
+      if (src instanceof Uint8ClampedArray) {
+        src = new Uint8Array(src.buffer);
+      }
+    }
+    var bytesPerElement = getBytesPerElementForInternalFormat(internalFormat, type);
+    var numElements = src.byteLength / bytesPerElement;  // TODO: check UNPACK_ALIGNMENT?
     if (numElements % 1) {
       throw "length wrong size for format: " + glEnumToString(gl, format);
     }
@@ -852,21 +1313,15 @@ define([
       width = dimensions.width;
       height = dimensions.height;
     }
-    if (!isArrayBuffer(src)) {
-      var Type = typedArrays.getTypedArrayTypeForGLType(type);
-      src = new Type(src);
-    } else {
-      if (src instanceof Uint8ClampedArray) {
-        src = new Uint8Array(src.buffer);
-      }
-    }
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, options.unpackAlignment || 1);
     savePackState(gl, options);
     if (target === gl.TEXTURE_CUBE_MAP) {
-      var faceSize = numElements / 6 * numComponents;
-      getCubeFacesWithNdx(gl, options).forEach(function(f) {
-        var offset = faceSize * f.ndx;
-        var data = src.subarray(offset, offset + faceSize);
+      const elementsPerElement = bytesPerElement / src.BYTES_PER_ELEMENT;
+      const faceSize = numElements / 6 * elementsPerElement;
+
+      getCubeFacesWithNdx(gl, options).forEach(f => {
+        const offset = faceSize * f.ndx;
+        const data = src.subarray(offset, offset + faceSize);
         gl.texImage2D(f.face, 0, internalFormat, width, height, 0, format, type, data);
       });
     } else if (target === gl.TEXTURE_3D) {
@@ -879,6 +1334,7 @@ define([
       width: width,
       height: height,
       depth: depth,
+      type: type,
     };
   }
 
@@ -893,9 +1349,10 @@ define([
   function setEmptyTexture(gl, tex, options) {
     var target = options.target || gl.TEXTURE_2D;
     gl.bindTexture(target, tex);
-    var format = options.format || gl.RGBA;
-    var internalFormat = options.internalFormat || format;
-    var type = options.type || gl.UNSIGNED_BYTE;
+    var internalFormat = options.internalFormat || options.format || gl.RGBA;
+    var formatType = getFormatAndTypeForInternalFormat(internalFormat);
+    var format = options.format || formatType.format;
+    var type = options.type || formatType.type;
     savePackState(gl, options);
     if (target === gl.TEXTURE_CUBE_MAP) {
       for (var ii = 0; ii < 6; ++ii) {
@@ -924,6 +1381,9 @@ define([
     var target = options.target || gl.TEXTURE_2D;
     var width  = options.width  || 1;
     var height = options.height || 1;
+    var internalFormat = options.internalFormat || gl.RGBA;
+    var formatType = getFormatAndTypeForInternalFormat(internalFormat);
+    var type = options.type || formatType.type;
     gl.bindTexture(target, tex);
     if (target === gl.TEXTURE_CUBE_MAP) {
       // this should have been the default for CUBEMAPS :(
@@ -947,8 +1407,13 @@ define([
         var dimensions = setTextureFromArray(gl, tex, src, options);
         width  = dimensions.width;
         height = dimensions.height;
+        type   = dimensions.type;
       } else if (Array.isArray(src) && typeof (src[0]) === 'string') {
-        loadCubemapFromUrls(gl, tex, options, callback);
+        if (target === gl.TEXTURE_CUBE_MAP) {
+          loadCubemapFromUrls(gl, tex, options, callback);
+        } else {
+          loadSlicesFromUrls(gl, tex, options, callback);
+        }
       } else if (src instanceof HTMLElement) {
         setTextureFromElement(gl, tex, src, options);
         width  = src.width;
@@ -960,7 +1425,7 @@ define([
       setEmptyTexture(gl, tex, options);
     }
     if (options.auto !== false) {
-      setTextureFilteringForSize(gl, tex, options, width, height);
+      setTextureFilteringForSize(gl, tex, options, width, height, internalFormat, type);
     }
     setTextureParameters(gl, tex, options);
     return tex;
@@ -987,15 +1452,17 @@ define([
     height = height || options.height;
     var target = options.target || gl.TEXTURE_2D;
     gl.bindTexture(target, tex);
-    var format = options.format || gl.RGBA;
+    var internalFormat = options.internalFormat || options.format || gl.RGBA;
+    var formatType = getFormatAndTypeForInternalFormat(internalFormat);
+    var format = options.format || formatType.format;
     var type;
     var src = options.src;
     if (!src) {
-      type = options.type || gl.UNSIGNED_BYTE;
+      type = options.type || formatType.type;
     } else if (isArrayBuffer(src) || (Array.isArray(src) && typeof (src[0]) === 'number')) {
-      type = options.type || getTextureTypeForArrayType(gl, src);
+      type = options.type || getTextureTypeForArrayType(gl, src, formatType.type);
     } else {
-      type = options.type || gl.UNSIGNED_BYTE;
+      type = options.type || formatType.type;
     }
     if (target === gl.TEXTURE_CUBE_MAP) {
       for (var ii = 0; ii < 6; ++ii) {
@@ -1139,6 +1606,10 @@ define([
   return {
     "setDefaults_": setDefaults,
 
+    "createSampler": createSampler,
+    "createSamplers": createSamplers,
+    "setSamplerParameters": setSamplerParameters,
+
     "createTexture": createTexture,
     "setEmptyTexture": setEmptyTexture,
     "setTextureFromArray": setTextureFromArray,
@@ -1150,6 +1621,7 @@ define([
     "createTextures": createTextures,
     "resizeTexture": resizeTexture,
     "getNumComponentsForFormat": getNumComponentsForFormat,
+    "getBytesPerElementForInternalFormat": getBytesPerElementForInternalFormat,
   };
 });
 
